@@ -29,7 +29,7 @@
 
 #                                     SCRIPT INPUTS
 #======================================================================================
-# install_python.sh "<resource #1 name>" "<resource #2 name>" ... "<resource #n name>"
+# install_python.sh '["<resource-1>","<resource-2>",...,"<resource-n>"]'
 #
 # Above is a sample call to this script. The only inputs given to this script should
 # be the name of the resources that conda and the corresponding environment will be
@@ -52,22 +52,22 @@ conda_env="cloud-data" # Desired name of conda environment
 #==================================================================================================
 # 1. MINICONDA INSTALLATION
 f_install_miniconda() {
-    conda_test=$(dirname $(dirname "$(which conda)"))
+    #conda_test=$(dirname $(dirname "$(which conda)"))
     install_dir=$1
     conda_version=$2
-    if [ -n "${conda_test}" ]
-    then
-        echo "Miniconda is already installed in \"${conda_test}\"!"
-        eval "$install_dir=\${conda_test}"
-    else
-        conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-${conda_version}-Linux-x86_64.sh"
-        ID=$(date +%s)-${RANDOM} # This script may run at the same time!
-        nohup wget ${conda_repo} -O /tmp/miniconda-${ID}.sh 2>&1 > /tmp/miniconda_wget-${ID}.out
-        rm -rf ${install_dir}
-        mkdir -p $(dirname ${install_dir})
-        nohup bash /tmp/miniconda-${ID}.sh -b -p ${install_dir} 2>&1 > /tmp/miniconda_sh-${ID}.out
-        rm /tmp/miniconda-${ID}.sh
-    fi
+    #if [ -n "${conda_test}" ]
+    #then
+    #   echo "Miniconda is already installed in \"${conda_test}\"!"
+    #    eval "$install_dir=\${conda_test}"
+    #else
+    conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-${conda_version}-Linux-x86_64.sh"
+    ID=$(date +%s)-${RANDOM} # This script may run at the same time!
+    nohup wget ${conda_repo} -O /tmp/miniconda-${ID}.sh 2>&1 > /tmp/miniconda_wget-${ID}.out
+    rm -rf ${install_dir}
+    mkdir -p $(dirname ${install_dir})
+    nohup bash /tmp/miniconda-${ID}.sh -b -p ${install_dir} 2>&1 > /tmp/miniconda_sh-${ID}.out
+    rm /tmp/miniconda-${ID}.sh
+    #fi
 }
 
 # 2. CONDA ENVIRONMENT INSTALLATION
@@ -123,19 +123,32 @@ f_install_env() {
 
             # Other more specialized packages.
             # Can be edited to desired evironment.
-            conda install -y math
             conda install -y -c conda-forge dask
+            echo Dask installed
             conda install -y -c conda-forge xarray
+            echo xarray installed
             conda install -y -c conda-forge netCDF4
+            echo netCDF4 installed
             conda install -y -c conda-forge bottleneck
+            echo bottleneck installed
             conda install -y -c conda-forge intake-xarray
+            echo intake-xarry installed
             conda install -y -c conda-forge matplotlib
-            conda install -y -c anaconda scipy
+            echo matplotlib installed
+            #conda install -y -c anaconda scipy
+            #echo scipy installed
             conda install -y -c conda-forge gcsfs
+            echo gcsfs installed
             conda install -y -c conda-forge s3fs
+            echo s3fs installed
             conda install -y -c conda-forge fastparquet
+            echo fastparquet installed
             conda install -y -c conda-forge h5netcdf
+            echo h5netcdf installed
             pip install pyarrow
+            echo pyarrow installed
+            pip install scipy
+            echo scipy installed
 
             # Write out the ${my_env}_requirements.yml to document environment
             conda env export > ${env_filename}
@@ -150,11 +163,11 @@ f_install_env() {
 #=============================================================================================================
 # Loop executes conda installation and environment construction for each resource specificed in script inputs.
 local_wd=$(pwd)
-if [ -z "$@" ]
+if [ -z "$1" ]
 then
     echo "Please specify at least one resource to run installation script on."
 else
-    for resource in $@
+    for resource in $(echo "$1" | jq -r '.[]')
     do
         miniconda_dir_ref=${miniconda_dir}
         echo "Will install to ${miniconda_dir_ref}"
@@ -165,7 +178,7 @@ else
 
         # Checks to see if local copy of requirements file exists.
         # If so, copies over to the current remote resource in the loop.
-        if [ -e ${conda_env}_requirements.yml]
+        if [ -e "${conda_env}_requirements.yml" ]
         then
             scp -q ${conda_env}_requirements.yml ${resource}.clusters.pw:
         fi
