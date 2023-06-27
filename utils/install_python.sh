@@ -124,31 +124,17 @@ f_install_env() {
             # Other more specialized packages.
             # Can be edited to desired evironment.
             conda install -y -c conda-forge dask
-            echo Dask installed
-            conda install -y -c conda-forge xarray
-            echo xarray installed
-            conda install -y -c conda-forge netCDF4
-            echo netCDF4 installed
-            conda install -y -c conda-forge bottleneck
-            echo bottleneck installed
-            conda install -y -c conda-forge intake-xarray
-            echo intake-xarry installed
-            conda install -y -c conda-forge matplotlib
-            echo matplotlib installed
-            #conda install -y -c anaconda scipy
-            #echo scipy installed
-            conda install -y -c conda-forge gcsfs
-            echo gcsfs installed
-            conda install -y -c conda-forge s3fs
-            echo s3fs installed
-            conda install -y -c conda-forge fastparquet
-            echo fastparquet installed
             conda install -y -c conda-forge h5netcdf
-            echo h5netcdf installed
+            conda install -y -c conda-forge xarray
+            conda install -y -c conda-forge netCDF4
+            conda install -y -c conda-forge bottleneck
+            conda install -y -c conda-forge intake-xarray
+            conda install -y -c conda-forge matplotlib
+            conda install -y -c conda-forge gcsfs
+            conda install -y -c conda-forge s3fs
+            conda install -y -c conda-forge fastparquet
             pip install pyarrow
-            echo pyarrow installed
             pip install scipy
-            echo scipy installed
 
             # Write out the ${my_env}_requirements.yml to document environment
             conda env export > ${env_filename}
@@ -162,32 +148,28 @@ f_install_env() {
 #                                            EXECUTE INSTALLATION
 #=============================================================================================================
 # Loop executes conda installation and environment construction for each resource specificed in script inputs.
-local_wd=$(pwd)
-if [ -z "$1" ]
-then
-    echo "Please specify at least one resource to run installation script on."
-else
-    for resource in $(echo "$1" | jq -r '.[]')
-    do
-        miniconda_dir_ref=${miniconda_dir}
-        echo "Will install to ${miniconda_dir_ref}"
-        # Install miniconda
-        echo "Installing Miniconda-${conda_version} on ${resource}..."
-        ssh ${resource}.clusters.pw "$(typeset -f f_install_miniconda); f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
-        echo "Finished installing Miniconda on ${resource}."
+local_wd=$(pwd)/utils
 
-        # Checks to see if local copy of requirements file exists.
-        # If so, copies over to the current remote resource in the loop.
-        if [ -e "${conda_env}_requirements.yml" ]
-        then
-            scp -q ${conda_env}_requirements.yml ${resource}.clusters.pw:
-        fi
+for resource in $(echo "$1" | jq -r '.[]')
+do
+    miniconda_dir_ref=${miniconda_dir}
+    echo "Will install to ${miniconda_dir_ref}"
+    # Install miniconda
+    echo "Installing Miniconda-${conda_version} on ${resource}..."
+    ssh ${resource}.clusters.pw "$(typeset -f f_install_miniconda); f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
+    echo "Finished installing Miniconda on ${resource}."
 
-        # Build environment
-        echo "Building \`${conda_env}\` environment on ${resource}..."
-        ssh ${resource}.clusters.pw "$(typeset -f f_install_env); f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
-        echo "Finished building \`${conda_env}\` environment on ${resource}."
-    done
+    # Checks to see if local copy of requirements file exists.
+    # If so, copies over to the current remote resource in the loop.
+    if [ -e "${local_wd}/${conda_env}_requirements.yml" ]
+    then
+        scp -q ${local_wd}/${conda_env}_requirements.yml ${resource}.clusters.pw:
+    fi
 
-    echo "Done installing Miniconda-${conda_version} and building \`${conda_env}\` on all requested resources."
-fi
+    # Build environment
+    echo "Building \`${conda_env}\` environment on ${resource}..."
+    ssh ${resource}.clusters.pw "$(typeset -f f_install_env); f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
+    echo "Finished building \`${conda_env}\` environment on ${resource}."
+done
+
+echo "Done installing Miniconda-${conda_version} and building \`${conda_env}\` on all requested resources."

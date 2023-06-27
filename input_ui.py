@@ -101,12 +101,7 @@ class get_strings:
             
 getStrings = get_strings()
 
-class randgen_options:
-    # Set submission flag to true
-    # upon click of `Submit` button
-    def on_submit(self, btn):
-        self.submit = True
-    
+class randgen_options:    
     # Creates all widgets for randomly generated
     # file options.
     def set_widgets(self):
@@ -155,12 +150,34 @@ class randgen_options:
                         self.size_box.children[i].disabled = False
                 time.sleep(0.1) # Run loop every 0.1 seconds
     
+    def check_input(self):
+        filetype_bool = [v.value for v in self.checks_box.children]
+        filetype_desc = [v.description for v in self.checks_box.children]
+        filesize = [v.value for v in self.size_box.children]
+        true_index = [i for i, v in enumerate(filetype_bool) if v == True]
+        for i in true_index:
+            if not filesize[i]:
+                print(filetype_desc[i], 'must have nonzero size.')
+                self.cont = False
+                break
+
+    # Set submission flag to true
+    # upon click of `Submit` button.
+    # Call `check_input` to ensure
+    # that all desired file formats
+    # have a nonzero size.
+    def on_submit(self, btn):
+        self.cont = True
+        self.check_input()
+        if self.cont:
+            self.submit = True
+
     # Upon submission, processes final user input based on which boxes are checked.
     # In addition, pulls the corresponding file size and records the desired resource
     # for file writing.
     def process_input(self):
         # Resource name collection
-        rname = self.rand_resource.value
+        rname = (self.rand_resource.value,)
         
         # Pull the state and description of the check boxes,
         # as well with all file sizes input. Determine which
@@ -174,10 +191,13 @@ class randgen_options:
         # desired file types and sizes
         rand_sizes = []
         rand_files = []
-        for i in true_index:
-            rand_files.append(filetype_desc[i])
-            rand_sizes.append(filesize[i])
-        
+        if true_index:
+            for i in true_index:
+                rand_files.append(filetype_desc[i])
+                rand_sizes.append(filesize[i])
+        else:
+            rand_files.append('None')
+            rand_sizes.append('None')
         # Return the desired resource for use in file writing
         # and file types and their corresponding sizes
         return (rname, tuple(rand_files), tuple(rand_sizes))
