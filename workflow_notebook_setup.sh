@@ -30,12 +30,13 @@ then
     resource=$( echo "${randgen_resource}" | jq -r '.[0]' )
 
     copypath=$( pwd )/utils
-    scp -q ${copypath}/rand_files.py ${copypath}/run_rand_files.sh ${resource}.clusters.pw:
+    rsync -r ${copypath}/random-file-generator ${resource}.clusters.pw:
 
     ssh ${resource}.clusters.pw "export RANDGEN_FILES='${randgen_files}'; \
                                  export RANDGEN_SIZES='${randgen_sizes}'; \
                                  export RANDGEN_STORES='${benchmark_storage}'; \
-                                 bash run_rand_files.sh"
+                                 bash random-file-generator/run_rand_files.sh; \
+                                 rm -r random-file-generator"
 else
     echo No randomly generated files will be created.
 fi
