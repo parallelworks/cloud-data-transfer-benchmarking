@@ -11,17 +11,12 @@
 ##################MAIN PROGRAM######################
 # 1. MINICONDA INSTALLATION AND "cloud-data"
 #    ENVIRONMENT CONSTRUCTON:
-#bash $( pwd )/utils/install_python.sh ${resources}
+#bash $( pwd )/utils/python/installation/install_python.sh ${resources}
 
 # 2. RANDOM NUMER FILE GENERATION:
-# |              Future Improvements               |
-# | Conditional statements that check if there are |
-# | multiple cloud resources that the user would   |
-# | like to write random data with. In the event   |
-# | that there are, check for an store of the      |
-# | same CSP as the storage and write using that.  |
-
 # First check if user has specified any files to randomly generate
+##jq '.RANDFILES[] | .Generate' user_input.json
+
 if [ "$(echo "${randgen_files}" | jq -r '.[]')" != "None" ]
 then
     echo Generating random files...
@@ -38,5 +33,5 @@ then
                                  bash random-file-generator/run_rand_files.sh; \
                                  rm -r random-file-generator"
 else
-    echo No randomly generated files will be created.
+    echo No randomly generated files will be created
 fi

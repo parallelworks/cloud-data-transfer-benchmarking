@@ -4,7 +4,7 @@ This script defines classes useful for processing user input and
 executing writes for randomly generated files. 
 
 It requires `gcsfs` and `s3fs` for writing to cloud storage 
-locations when a URI is given, `xarray` for writing NetCDF4 files,
+locations when a URI is given, `xarray` & `scipy` for writing NetCDF4 files,
 and numpy & pandas for writing CSV files. These packages must be
 installed on the environment that `rand_files.py` is running in
 to function correctly.
@@ -27,20 +27,25 @@ into `rand_files.py`. It contains the following classes and custom errors:
 
 import gcsfs
 import s3fs
+import dask
 import xarray as xr
+import h5netcdf
 import numpy as np
 import pandas as pd
 import math
 import os
 
+
+
 except InvalidCredentialsError:
     """ Raised when an attempt to access the credentials was unsucessful,
-    or when the credentials do not have the correct permissions.
-    """
-    
+    or when the credentials do not have the correct permissions."""
+
     print("The path the cloud storage credentials file is either " \
     "incorrect, or they do not grant write access.\n Verify that the credential" \
     "path was input correctly, or edit the credentials to include write access.")
+
+
 
 class preprocessor:
     """
@@ -73,13 +78,17 @@ class preprocessor:
         of cloud object storage locations
     """
 
-    def __init__(self, storage_locations : tuple):
+    def __init__(self, storage_locations : tuple, filetypes : tuple(str)):
         """
         Parameters
         ----------
         storage_locations : tuple
             Tuple of cloud storage URIs or absolute path
             of cloud object store mounted into POSIX filesystem
+        filetype : str
+            A tuple of strings containing the desired filetypes
+            to randomly generate. Will only contain one or a
+            combination of the following formats: CSV, NetCDF4, and Binary
         """
 
         self.storage_locs = storage_locations
@@ -191,7 +200,9 @@ class preprocessor:
 class randfileGenerator:
     """
     Class used to write files with randomly generated
-    values of a given GB size.
+    values of a given GB size. In order to write files of
+    arbitrarily large size, we use Dask to handle out-of-memory
+    data sizes
 
     Methods
     -------
@@ -305,8 +316,17 @@ class randfileGenerator:
         return full_path
 
 
-    def netcdf(self) -> str:
-        """Generates NetCDF4 file of a given size.
+    def netcdf(self, float_dims : int, time_dims : int) -> str:
+        """Generates NetCDF4 file of a given size. The generated NetCDF4 file
+        may have any number of dimensions that a user wishes, provided that
+        the overhead of creating a file does not exceed the file size.
+
+        Parameters
+        ----------
+        float_dims : int
+            The desired number of float-valued dimensions to use in NetCDF4 generation
+        time_dims : int
+            The desired number of time-valued dimensions to use in NetCDF4 generation
 
         Returns
         -------
@@ -323,7 +343,48 @@ class randfileGenerator:
         self.filesystems() # Call the filesystems() method and set
                            # the correct filesystem based on the CSP
 
-        # TODO: Use xarray to write NetCDF4 files.
+        # Determine NetCDF4 file size
+        value_bytes = 8 # four bytes for each float value in the data variable
+        coord_bytes = 8 # four bytes for each integer coordinate value
+        time_bytes = 8 # eight bytes for each time value
+        n_dims = float_dims + time_dims # Total number of desired dimensions
+
+        # Populate polynomial coefficients list
+        coeffs = [value_bytes] # First term of polynomial will always be 4
+        for i in range(n_dims-2):
+            coeffs.append(0) # All coefficents of polynomial terms with
+                             # order n-1 to 2 will be zero
+        coeffs.append(coord_bytes*float_dims + time_bytes*time_dims) # Dimension coefficient
+        coeffs.append(-self.filesize*self.GB2Byte + overhead) # Final term representing filesize & overhead
+
+        # Find only positive roots and determine
+        # the integer representing coordinate length
+        sols = np.roots(coeffs)
+        for i in sols:
+            if i.imag == 0 and i.real > 0:
+                dim_length = round(i.real)
+        
+
+
+        
+
+        
+
+        # TODO: Generalize NetCDF4 writing for a given size
+        ds = xr.Dataset(
+            {"random": (("x", "y", "z"), np.random.rand(4,4,4))},
+            coords = {
+                "x": [10, 20, 30, 40],
+                "y": [10, 20, 30, 40],
+                "z": pd.data_range("2023-01-01", periods = 4),
+            },
+        )
+        match self.csp:
+            case None:
+                ds.to_netcdf(full_path, engine=h5netcdf)
+            case other:
+                with self.fs.open(full_path, 'wb') as file:
+                    ds.to_netcdf(file, engine=h5netcdf)
 
         self.confirmation(name) # Call the confirmation(...) attribute
         return full_path
