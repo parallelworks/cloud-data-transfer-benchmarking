@@ -317,9 +317,19 @@ class resourceWidgets(commonWidgets):
 
     def widget_func(self):
         "Defines the widgets that will be used in this particular field of inputs"
-        widget = wg.VBox((wg.Text(placeholder='Resource name'),
-                        wg.Dropdown(options=('SLURM',)),
-                        wg.Text(placeholder='Partition name')))
+        widget = wg.VBox((wg.HBox([wg.Label('Resource Name: '),
+                                 wg.Text(placeholder='my-cluster')
+                                ]),
+                        wg.HBox([wg.Label('Cloud Service Provider: '),
+                                wg.Dropdown(options=('GCP',))
+                            ]),
+                        wg.HBox([wg.Label('Resource Manager: '),
+                                wg.Dropdown(options=('SLURM',))
+                            ]),
+                        wg.HBox([wg.Label('Partition Name: '),
+                                wg.Text(placeholder='compute')
+                            ])
+                        ))
         return widget
 
     def display(self):
@@ -330,17 +340,15 @@ class resourceWidgets(commonWidgets):
         # see if any displayed input fields are blank and blocks submission
         # of the inputs if they are.
         def submit_cmds():
-            submit_cmd_flag = True
             boxes = self.main.children
 
-            for i in boxes:
-                data = tuple(v.value for v in i.children)
-                if any(len(v) == 0 for v in data):
-                    print('Ensure no fields are blank before submitting.')
-                    submit_cmd_flag = False
-                    break
+            for n in boxes:
+                for i in n.children:
+                    if len(i.children[1].value) == 0:
+                        print('Ensure no fields are blank before submitting.')
+                        return False
             
-            return submit_cmd_flag
+            return True
 
         # Same scheme from `commonWidgets.display()`
         btn_box = self.AppendBoxes(box_title = 'Resource')
@@ -366,16 +374,16 @@ class resourceWidgets(commonWidgets):
             to the calling Jupyter notebook.
         """
         resources = []
-        data = self.main.children
+        boxes = self.main.children
         # Loop through all boxes and store the information about
         # each resource
-        for i in data:
+        for i in boxes:
             children = i.children
-            resources.append({"Name" : children[0].value,
+            resources.append({"Name" : children[0].children[1].value,
                             "Controller" : "PW",
-                            "CSP" : None,
-                            "Dask Options" : {"Scheduler" : children[1].value,
-                                              "Partition" : children[2].value}})
+                            "CSP" : children[1].children[1].value,
+                            "Dask Options" : {"Scheduler" : children[2].children[1].value,
+                                              "Partition" : children[3].children[1].value}})
 
         print('\n-----------------------------------------------------------------------------')
         print('If you wish to change information about cloud resources, run this cell again.\n')
@@ -414,7 +422,14 @@ class storageWidgets(commonWidgets):
 
     def widget_func(self):
         "Set widgets specific to cloud object storage for copying"
-        widget = wg.VBox((wg.Text(placeholder="Storage URI/Mount path"),))
+        widget = wg.VBox((wg.HBox([wg.Label('Storage URI/Mount Path: '),
+                                wg.Text(placeholder="gcs://my-bucket or /path/to/bucket")
+                                ]),
+                         wg.HBox([wg.Label('Cloud Service Provider: '),
+                                wg.Dropdown(options=('GCP (URI)',
+                                                    'GCP (Mounted)'))
+                                ])
+                        ))
         return widget
 
     def display(self):
@@ -422,17 +437,15 @@ class storageWidgets(commonWidgets):
         box_list = [self.main]
 
         def submit_cmds():
-            submit_cmd_flag = True
             boxes = self.main.children
 
-            for i in boxes:
-                data = tuple(v.value for v in i.children)
-                if any(len(v) == 0 for v in data):
-                    print('Ensure no fields are blank before submitting.')
-                    submit_cmd_flag = False
-                    break
+            for n in boxes:
+                for i in n.children:
+                    if len(i.children[1].value) == 0:
+                        print('Ensure no fields are blank before submitting.')
+                        return False
             
-            return submit_cmd_flag
+            return True
 
         btn_box = self.AppendBoxes(box_title='Cloud Object Store')
         box_list.append(btn_box)
@@ -447,8 +460,8 @@ class storageWidgets(commonWidgets):
         data = self.main.children
         for i in data:
             children = i.children
-            storage.append({"URI/Path" : children[0].value,
-                            "CSP" : None})
+            storage.append({"URI/Path" : children[0].children[1].value,
+                            "CSP" : children[1].children[1].value})
 
         print('\n--------------------------------------------------------------------------------------')
         print('If you wish to change information about cloud storage locations, run this cell again.\n')
@@ -484,7 +497,6 @@ class randgenWidgets(commonWidgets):
         """
 
         resource_names = []
-
         # Check if resources have not been specified (this should never trigger if the user
         # doesn't edit any code in `main.ipynb`)
         if resources == None:
@@ -495,35 +507,44 @@ class randgenWidgets(commonWidgets):
         for i in resources:
             resource_names.append(i['Name'])
 
-        # Store recurring widget descriptions in variables
-        generate_desc = 'Generate?'
-        filesize_desc = 'File Size (GB)'
+        # Create recurring widgets in functions
+        def create_checkbox(label='Generate?'):
+            wig = wg.HBox([wg.Label(label), wg.Checkbox()])
+            return wig
+        
+        def create_sizebox(label='File Size (GB): ', value=0):
+            wig = wg.HBox([wg.Label(label), wg.FloatText(disabled=True, value=value)])
+            return wig
 
         # Dropdown box that allows users to choose a resource to write randomly generated
         # files with
-        rand_resource = wg.Dropdown(options = resource_names)
+        rand_resource = wg.HBox([wg.Label('Resource to write random files with: '), wg.Dropdown(options = resource_names)])
 
         # Checkbox and filesize box for CSV files. Checking the box indicates that the user
         # wants to generate the file. Assume this behavior for all checkboxes in this section
-        csv_box = wg.VBox([wg.Checkbox(description=generate_desc),
-                           wg.FloatText(description=filesize_desc, disabled=True, value=0)
-                          ])
+        csv_checkbox = create_checkbox()
+        csv_sizebox = create_sizebox()
+        csv_box = wg.VBox([csv_checkbox, csv_sizebox])
 
         # Similar to CSV file widgets, except adds fields to let the user set the dimensionality
         # of the NetCDF4 file. Currently, only supports float axes and time axes.
-        netcdf_box = wg.VBox([wg.Checkbox(description=generate_desc),
-                              wg.FloatText(description=filesize_desc, disabled=True, value=0),
-                              wg.IntText(description='Data Variables',
-                                         value=1, disabled = True),
-                              wg.IntText(description='Float Axes',
-                                         value=2, disabled = True),
-                              wg.IntText(description='Time Axes',
-                                        value=1, disabled = True)
+        netcdf_checkbox = create_checkbox()
+        netcdf_sizebox = create_sizebox()
+        datavars = create_sizebox(label='Data Variables: ', value=1)
+        floatax = create_sizebox(label='Float Axes: ', value=2)
+        timeax = create_sizebox(label='Time Axes: ', value=1)
+        netcdf_box = wg.VBox([netcdf_checkbox,
+                              netcdf_sizebox,
+                              datavars,
+                              floatax,
+                              timeax
                             ])
 
         # Same widgets as CSV file widgets
-        binary_box = wg.VBox([wg.Checkbox(description=generate_desc),
-                              wg.FloatText(description=filesize_desc, disabled=True, value=0)
+        binary_checkbox = create_checkbox()
+        binary_sizebox = create_sizebox()
+        binary_box = wg.VBox([binary_checkbox,
+                              binary_sizebox
                             ])
         
         # Populate main box with all randomly generated file widgets
@@ -556,21 +577,21 @@ class randgenWidgets(commonWidgets):
         # Since no fields are dynamically added or subtracted, locations of specific
         # information are hardcoded in
         out = [{"Format" : formats[0],
-                "Generate" : fields[0][0].value,
-                "SizeGB" : fields[0][1].value
+                "Generate" : fields[0][0].children[1].value,
+                "SizeGB" : fields[0][1].children[1].value
                 },
                 {"Format" : formats[1],
-                "Generate" : fields[1][0].value,
-                "SizeGB" : fields[1][1].value,
-                "Data Variables" : fields[1][2].value,
-                "Float Coords" : fields[1][3].value,
-                "Time Coords" : fields[1][4].value
+                "Generate" : fields[1][0].children[1].value,
+                "SizeGB" : fields[1][1].children[1].value,
+                "Data Variables" : fields[1][2].children[1].value,
+                "Float Coords" : fields[1][3].children[1].value,
+                "Time Coords" : fields[1][4].children[1].value
                 },
                 {"Format" : formats[2],
-                "Generate" : fields[2][0].value,
-                "SizeGB" : fields[2][1].value
+                "Generate" : fields[2][0].children[1].value,
+                "SizeGB" : fields[2][1].children[1].value
                 },
-                {"Resource" : self.main.children[0].value}
+                {"Resource" : self.main.children[0].children[1].value}
               ]
 
         print('\n-------------------------------------------------------------------------------')
@@ -591,17 +612,17 @@ class randgenWidgets(commonWidgets):
         # will allow the user to input information.
         def observer_cmds():
             files = self.main.children[1].children
-            check_status = tuple(v.children[0].value for v in files)
-            disable_status = tuple(v.children[1].disabled for v in files)
+            check_status = tuple(v.children[0].children[1].value for v in files)
+            disable_status = tuple(v.children[1].children[1].disabled for v in files)
 
             for i in range(len(check_status)):
                 fields = self.main.children[1].children[i].children[1:]
                 if check_status[i] == False and disable_status[i] == False:
                     for n in fields:
-                        n.disabled = True
+                        n.children[1].disabled = True
                 elif check_status[i] == True and disable_status[i] == True:
                     for n in fields:
-                        n.disabled = False
+                        n.children[1].disabled = False
     
         # If a checkbox for a particular file type is checked, searches through
         # filesize widgets and will not submit the inputs if any fields are zero.
@@ -614,15 +635,15 @@ class randgenWidgets(commonWidgets):
             # Grab information about checkbox states and file sizes corresponding
             # to each file type
             files = self.main.children[1].children
-            filetype_bool = [v.children[0].value for v in files]
+            filetype_bool = [v.children[0].children[1].value for v in files]
             filetype_desc = self.main.children[1].titles
-            filesize = [v.children[1].value for v in files]
+            filesize = [v.children[1].children[1].value for v in files]
             # Find the index of the filetypes that are true
             true_index = [i for i, v in enumerate(filetype_bool) if v == True]
 
             # Get info about the extra NetCDF4 options
             nc_info = files[1].children[2:]
-            nc_info_vals = [v.value for v in nc_info]
+            nc_info_vals = [v.children[1].value for v in nc_info]
 
             # Loop through the indexes of the filetypes that are set
             # to be generated
