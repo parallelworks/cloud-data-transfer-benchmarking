@@ -1,28 +1,97 @@
 """Helper Classes for User Input UI of 
    Jupyter Notebook Version of Workflow
 
-   INSERT SCRIPT DESCRIPTION HERE
+   This script defines helper classes that generate
+   input widgets for the `cloud-data-transfer-benchmarking`
+   workflow (found in PW GH under a repository of the same
+   name). These classes are for the interactive version 
+   of this workflow (i.e., running from a Jupyter notebook), 
+   allowing a user to input all of the required parameters
+   to make the workflow function.
+
+   Classes
+   -------
+   commonWidgets
+        This class contains all widget functionality that is
+        common between specific input widgets. It includes
+        methods to add and delete fields (such as a desired
+        setup that requires multiple resources or cloud
+        storage locations) and a submit button that confirms
+        and displays inputs
+    
+    resourceWidgets(commonWidgets)
+        Inherited from commonWidgets. Sets up and generates widgets
+        that allow user to input cloud compute resources and accompanying
+        information required for workflow execution.
+    
+    storageWidgets(commonWidgets)
+        Inherited from commonWidgets. Similarly to resourceWidgets, sets
+        up widgets for cloud object storage input information.
+
+    randgenWidgets(commonWidgets)
+        Inhertited from commonWidgets. Sets up widgets that display options
+        for randomly generating files. This is an optional feature, but can
+        be used whenever a user doesn't have/doesn't want to supply their own
+        dataset.
+
+
+   Boxes refers to the groups that widgets are placed
+   in. In these helper classes, a box is referred to
+   a container object that holds widgets or other boxes.
+   The following hierarchy will apply to all classes in
+   this helper file:
+
+        I. main
+        An `ipywidget` accordion-style grouping that
+        holds other boxes.
+                II. main_box
+                Boxes that make up groups of widgets. The box
+                for a particular part of the UI (i.e., resource
+                info, storage info, and randomly generated file
+                options)
+                        III. widget
+                        Individual component widgets of the UI
+                        (such as buttons, text boxes, check boxes, etc.)
+
+ipywidgets is the package used to generate all widgets to `main.ipynb`,
+jupyter-ui-poll is required to observe events happening in the UI and
+check the states of specified widgets, and time is needed as a utility
+to the widget observer set up by jupyter-ui-poll. All packages must
+be installed on the environment the Jupyter notebook kernel is referencing.
+`main.ipynb` will automatically check for the correct version of these packages
+and install them if they are not there already.        
 """
-
-
 import ipywidgets as wg
 from jupyter_ui_poll import ui_events
 import time
 
+
+
 class commonWidgets:
     """
-    INSERT CLASS DESCRIPTION HERE
+    Class that defines commonly used functionality for user input UI. These include
+    functions that allow a user to dynamically add new input fields and initialize
+    a submit button that allows for input submission.
 
     Methods
     -------
-    submit_button(observer_cmds = None : function, submit_cmds = None : function)
+    widget_func():
+        A function that defines widgets that need to have a fresh copy for adding
+        more input fields are deleting them. This function does not need to be defined
+        if `AppendBoxes()` is not called anywhere in the `display()` method.
+
+    submit_button(observer_cmds = None : function, submit_cmds = None : function):
         Creates and displays button that allows users
         to submit their inputs. Also begins UI observer
         that waits for submission button to be pressed
         before more cells in a Jupyter notebook can be run
-    
+
+    AppendBoxes(box_title = None):
+        Allows users to dynamically add or delete widgets for inputs that may require
+        more than one field (e.g., cloud computing clusters, cloud storage locations).
+        Note that, if called anywhere in the class, the method `widget_func()` must be defined.
     """
-    
+ 
     def __init__(self):
         """Create a widget box and populate with a basic text box.
         This "default" widget is only used for testing the class.
@@ -30,12 +99,14 @@ class commonWidgets:
         method.
         """
 
-        main_box = wg.VBox((wg.Text(placeholder="Insert text"),))
-        self.main_box_copy = main_box
+        main_box = self.widget_func()
         self.main = wg.Accordion(children=[main_box],
                                  titles=('Default 1',)
                                 )
 
+    def widget_func(self):
+        widget = wg.VBox((wg.Text(placeholder="Insert text"),))
+        return widget
 
     def submit_button(self, observer_cmds = None, submit_cmds = None):
         """Generates a submit button and assigns a function to
@@ -79,6 +150,11 @@ class commonWidgets:
             Observes UI events and blocks execution of the
             calling Jupyter notebook cell until the submit
             button is pressed by the user
+
+        Returns
+        -------
+        submit_btn : ipywidgets button object
+            The submit button object
         """
 
         # Set the submission flag to false and
@@ -102,7 +178,7 @@ class commonWidgets:
             if cmd_submit_flag:
                 self.submit = True
 
-                    
+              
         def event_observer(observer_cmds):
             with ui_events() as poll:
                 while not self.submit:
@@ -119,20 +195,56 @@ class commonWidgets:
         display(submit_btn)
         event_observer(observer_cmds)
 
+        return submit_btn
 
-    def add_and_delete_wgs(self):
-        """Add description here
+
+    def AppendBoxes(self, box_title = None):
+        """Method that introduces the functionality
+        of appending copies of `main_box` into `main`.
+        Should not be called individually, as the function
+        depends on having the correct widgets configured.
+
+        Parameters
+        ----------
+        box_title : string (default = None)
+            Title to give a newly appended accordion box. If no
+            title is passed, new boxes will not have one.
 
         Inner Functions
         ---------------
+        Note: The following two functions have their parameters
+        passed in automatically upon their call in this method.
+    
+        add_widgets(btn : ipywidgets button object)
+            Appends a `main_box` copy to `main`. Copy is in the
+            base state (i.e., all widgets are in the same state
+            as they were upon initial creation)
+        del_widgets(btn : ipywidgets)
+            Deletes data from and removes the last copy of `main_box`
+            from `main` that was created with `add_widgets`
 
+        Returns
+        -------
+        btns_box : ipywidgets box object
+            Box that contains the add and delete fields
+            buttons
         """
 
+        # Function that creates a copy of the widgets defined in
+        # `widget_func()` and adds it to the ipywidgets accordion
+        # object
         def add_widgets(btn):
             children = list(self.main.children)
-            children.append(self.main_box_copy)
+            main_box_copy = self.widget_func()
+            children.append(main_box_copy)
+            titles = list(self.main.titles)
+            titles.append(box_title + ' ' + str(len(children)))
             self.main.children = children
+            self.main.titles = titles
 
+        # Removes the last widget added to the accordion object.
+        # Will not remove a widget if there is only one remaining
+        # in the accordion.
         def del_widgets(btn):
             current_children = self.main.children
             if len(current_children) > 1:
@@ -145,56 +257,395 @@ class commonWidgets:
         btns_box = wg.HBox(btns)
         display(btns_box)
 
+        return btns_box
+        
+
     def display(self):
-        self.add_and_delete_wgs()
+        """Displays widgets defined in `__init__`
+        and keeps a running total of all widgets displayed
+        at any given point. Also initializes the submit button
+        and all objects associated with it.
+        """
+        # Initialize widget list
+        wg_lst = [self.main]
+
+        # Add widget appending functionality to the
+        # UI to be displayed
+        btn_box = self.AppendBoxes()
+        wg_lst.append()
+
+        # Display the main set of widgets
         display(self.main)
-        self.submit_button()
+
+        # Initialize the submit button. Starts up
+        # the observer execution of the code below
+        # this line continues when submission button
+        # is pressed
+        submit_btn = self.submit_button()
+        wg_lst.append()
+
+        # Close all widgets in the list
+        [v.close() for v in wg_lst]
         
 
 
 class resourceWidgets(commonWidgets):
     """
-    Input class description here
+    Widgets designed to allow users to fill in
+    all required information pertaining to cloud resources.
+    New fields can be added very simply by editing `widget_func()`
+    and `process_input()`
+
+    Methods
+    -------
+    widget_func():
+        Defines the widgets that can be added or removed with `AppendWidgets()`
+        inherited from the `commonWidgets` class
+    
+    display():
+        See `display()` in `commonWidgets` for basic information about this class.
+        Added functionality includes defining conditions to check upon clicking the
+        submission button.
     """
     
     # TODO: Allow users to input non-PW resources
     def __init__(self):
-        name = wg.Text(placeholder='Resource name')
-        scheduler = wg.Dropdown(options=('SLURM',))
-        partition = wg.Text(placeholder='Partition name')
-        main_box = wg.VBox((name,
-                            scheduler,
-                            partition
-        ))
-        self.main_box_copy = main_box
-        self.main = wg.Accordion(children=[main_box])
+        "Initializes the main body of functions upon instantiation of the class"
+        main_box = self.widget_func()
+        self.main = wg.Accordion(children=[main_box], titles = ("Resource 1",))
+
+
+    def widget_func(self):
+        "Defines the widgets that will be used in this particular field of inputs"
+        widget = wg.VBox((wg.Text(placeholder='Resource name'),
+                        wg.Dropdown(options=('SLURM',)),
+                        wg.Text(placeholder='Partition name')))
+        return widget
 
     def display(self):
-        self.add_and_delete_wgs()
+        "See `display()` in `commonWidgets` for information on this class"
+        box_list = [self.main]
+
+        # Defines a function to pass to the submit button method. Checks to
+        # see if any displayed input fields are blank and blocks submission
+        # of the inputs if they are.
+        def submit_cmds():
+            submit_cmd_flag = True
+            boxes = self.main.children
+
+            for i in boxes:
+                data = tuple(v.value for v in i.children)
+                if any(len(v) == 0 for v in data):
+                    print('Ensure no fields are blank before submitting.')
+                    submit_cmd_flag = False
+                    break
+            
+            return submit_cmd_flag
+
+        # Same scheme from `commonWidgets.display()`
+        btn_box = self.AppendBoxes(box_title = 'Resource')
+        box_list.append(btn_box)
         display(self.main)
-        self.submit_button()
+        submit_btn = self.submit_button(submit_cmds=submit_cmds)
+        box_list.append(submit_btn)
+        [v.close() for v in box_list]
+
+
+    def processInput(self):
+        """When this class is called from the Jupyter notebook, the input
+        information stored from the `display()` method is parsed and formatted
+        into a list of dictionaries containing all user input fields. At the moment,
+        only PW resources may be used in the benchmarking. In future updates, users
+        will be able to run this workflow from outside the PW platform by passing
+        information about the host and IP of the head node of a cluster
+
+        Returns
+        -------
+        resources : list(dict)
+            Stores user inputs of cloud resource information and is output
+            to the calling Jupyter notebook.
+        """
+        resources = []
+        data = self.main.children
+        # Loop through all boxes and store the information about
+        # each resource
+        for i in data:
+            children = i.children
+            resources.append({"Name" : children[0].value,
+                            "Controller" : "PW",
+                            "CSP" : None,
+                            "Dask Options" : {"Scheduler" : children[1].value,
+                                              "Partition" : children[2].value}})
+
+        print('\n-----------------------------------------------------------------------------')
+        print('If you wish to change information about cloud resources, run this cell again.\n')
+        return resources
+
 
 
 class storageWidgets(commonWidgets):
     """
-    Input class description here
-    """
-    def __init__(self):
-        location = wg.Text(placeholder='Storage URI')
-        main_box = wg.VBox((location,))
+    Similar to `resourceWidgets`, this class takes user inputs about cloud storage locations.
+    The main difference is in `widget_func()`, where a different set of widgets is defined
+    to be added and deleted once the ui is running.
 
-        self.main_box_copy = main_box
-        self.main = wg.Accordion(children=[main_box])
+    Methods
+    -------
+    widget_func():
+        See `resourceWidgets.widget_func()` and `commonWidgets.widget_func()` for basic information.
+        This particular version of the method makes a single text box allowing the user
+        to input the cloud object storage location URI or mount path (if using PW storage)
+
+    display():
+        See the `resourceWidgets` and `commonWidgets` classes for basic information. This instance of
+        the `display()` method is identical to the one seen in `resourceWidgets`.
+
+    processInput():
+        Stores storage information input by user and returns the formatted data
+        to the calling Jupyter notebook
+
+    """
+
+    def __init__(self):
+        "Initialize first widget box"
+        main_box = self.widget_func()
+        self.main = wg.Accordion(children=[main_box],
+                                titles = ('Cloud Object Store 1',))
+
+    def widget_func(self):
+        "Set widgets specific to cloud object storage for copying"
+        widget = wg.VBox((wg.Text(placeholder="Storage URI/Mount path"),))
+        return widget
 
     def display(self):
-        self.add_and_delete_wgs()
+        "Identical code to the `.display()` method in `resourceWidgets`"
+        box_list = [self.main]
+
+        def submit_cmds():
+            submit_cmd_flag = True
+            boxes = self.main.children
+
+            for i in boxes:
+                data = tuple(v.value for v in i.children)
+                if any(len(v) == 0 for v in data):
+                    print('Ensure no fields are blank before submitting.')
+                    submit_cmd_flag = False
+                    break
+            
+            return submit_cmd_flag
+
+        btn_box = self.AppendBoxes(box_title='Cloud Object Store')
+        box_list.append(btn_box)
         display(self.main)
-        self.submit_button()
+        submit_btn = self.submit_button(submit_cmds = submit_cmds)
+        box_list.append(submit_btn)
+        [v.close() for v in box_list]
+
+    def processInput(self):
+        "New inputs can be defined and added on as the workflow develops"
+        storage = []
+        data = self.main.children
+        for i in data:
+            children = i.children
+            storage.append({"URI/Path" : children[0].value,
+                            "CSP" : None})
+
+        print('\n--------------------------------------------------------------------------------------')
+        print('If you wish to change information about cloud storage locations, run this cell again.\n')
+        return storage
+
 
 
 class randgenWidgets(commonWidgets):
     """
-    Input class description here
+    Creates widgets that allow user to define randomly generated file options.
+
+    Methods
+    -------
+    processInput():
+        Formats user input about randomly generated files and outputs back to
+        the calling Jupyter notebook
     """
-    def __init__(self):
-        pass
+    def __init__(self, resources = None):
+        """
+        Initializes all widgets pertaining to randomly generated files. Currently,
+        only generation of CSV, NetCDF4, and Binary files are supported by the workflow.
+        There is no `widget_func()` method like previous classes because these widgets
+        do not need to be dynamically added and removed with `AppendWidgets()`.
+
+        Parameters
+        ----------
+        resources : list(dict(...)) (default = None)
+            The data output from `resourceWidgets`. This will be used
+            to gather resource names that will serve as resource selections
+            to choose from in the randomly generated options. If no options
+            are passed in, will return a message indicating that the the
+            resources input section must be completed first
+        """
+
+        resource_names = []
+
+        # Check if resources have not been specified (this should never trigger if the user
+        # doesn't edit any code in `main.ipynb`)
+        if resources == None:
+            print('Enter your inputs in the `\"Cloud Compute Resources\" section before' \
+            'filling in the randomly generated file options.')
+
+        # Pull resource names from resource input data
+        for i in resources:
+            resource_names.append(i['Name'])
+
+        # Store recurring widget descriptions in variables
+        generate_desc = 'Generate?'
+        filesize_desc = 'File Size (GB)'
+
+        # Dropdown box that allows users to choose a resource to write randomly generated
+        # files with
+        rand_resource = wg.Dropdown(options = resource_names)
+
+        # Checkbox and filesize box for CSV files. Checking the box indicates that the user
+        # wants to generate the file. Assume this behavior for all checkboxes in this section
+        csv_box = wg.VBox([wg.Checkbox(description=generate_desc),
+                           wg.FloatText(description=filesize_desc, disabled=True, value=0)
+                          ])
+
+        # Similar to CSV file widgets, except adds fields to let the user set the dimensionality
+        # of the NetCDF4 file. Currently, only supports float axes and time axes.
+        netcdf_box = wg.VBox([wg.Checkbox(description=generate_desc),
+                              wg.FloatText(description=filesize_desc, disabled=True, value=0),
+                              wg.IntText(description='Data Variables',
+                                         value=1, disabled = True),
+                              wg.IntText(description='Float Axes',
+                                         value=2, disabled = True),
+                              wg.IntText(description='Time Axes',
+                                        value=1, disabled = True)
+                            ])
+
+        # Same widgets as CSV file widgets
+        binary_box = wg.VBox([wg.Checkbox(description=generate_desc),
+                              wg.FloatText(description=filesize_desc, disabled=True, value=0)
+                            ])
+        
+        # Populate main box with all randomly generated file widgets
+        main_box = wg.Tab(children=[csv_box, netcdf_box, binary_box],
+                          titles=('CSV', 'NetCDF4', 'Binary'))
+
+        # Place all widgets defined in this section into accordion object for display
+        self.main = wg.Accordion(children=[rand_resource, main_box],
+                                titles=('Select Resources', 'Select Files to Generate'))
+
+    def processInput(self):
+        """Similar to all other `processInput()` methods, but specific to randomly
+        generated files
+
+        Returns
+        -------
+        out : list(dict)
+            List containing a single dictionairy that stores all information
+            about randomly generated files
+        """
+
+        # Grab the strings containing the file format names
+        formats = self.main.children[1].titles
+
+        # Get all individual widgets from each file format
+        fields = []
+        for i in range(len(formats)):
+            fields.append(tuple(self.main.children[1].children[i].children[0:]))
+
+        # Since no fields are dynamically added or subtracted, locations of specific
+        # information are hardcoded in
+        out = [{"Format" : formats[0],
+                "Generate" : fields[0][0].value,
+                "SizeGB" : fields[0][1].value
+                },
+                {"Format" : formats[1],
+                "Generate" : fields[1][0].value,
+                "SizeGB" : fields[1][1].value,
+                "Data Variables" : fields[1][2].value,
+                "Float Coords" : fields[1][3].value,
+                "Time Coords" : fields[1][4].value
+                },
+                {"Format" : formats[2],
+                "Generate" : fields[2][0].value,
+                "SizeGB" : fields[2][1].value
+                },
+                {"Resource" : self.main.children[0].value}
+              ]
+
+        print('\n-------------------------------------------------------------------------------')
+        print('If you wish to change the randomly generated file options, run this cell again.\n')
+        return out
+
+
+    def display(self):
+        """
+        Similar to all other display methods, but does not call the `AppendWidgets()` method
+        and also defines commands to pass to the observer"""
+
+        wg_lst = [self.main]
+
+        # During each iteration of the observer loop, checks to see if the CheckBoxes
+        # for each file type are activated. If the checkbox is not checked, the widgets
+        # under it will be disabled. If checked, all widgets for a particular file format
+        # will allow the user to input information.
+        def observer_cmds():
+            files = self.main.children[1].children
+            check_status = tuple(v.children[0].value for v in files)
+            disable_status = tuple(v.children[1].disabled for v in files)
+
+            for i in range(len(check_status)):
+                fields = self.main.children[1].children[i].children[1:]
+                if check_status[i] == False and disable_status[i] == False:
+                    for n in fields:
+                        n.disabled = True
+                elif check_status[i] == True and disable_status[i] == True:
+                    for n in fields:
+                        n.disabled = False
+    
+        # If a checkbox for a particular file type is checked, searches through
+        # filesize widgets and will not submit the inputs if any fields are zero.
+        # For NetCDF4 dimension variables, will not submit the inputs if any of those
+        # are zero.
+        def submit_cmds():
+            # Assume that all inputs are ok
+            cmd_submit_flag = True
+
+            # Grab information about checkbox states and file sizes corresponding
+            # to each file type
+            files = self.main.children[1].children
+            filetype_bool = [v.children[0].value for v in files]
+            filetype_desc = self.main.children[1].titles
+            filesize = [v.children[1].value for v in files]
+            # Find the index of the filetypes that are true
+            true_index = [i for i, v in enumerate(filetype_bool) if v == True]
+
+            # Get info about the extra NetCDF4 options
+            nc_info = files[1].children[2:]
+            nc_info_vals = [v.value for v in nc_info]
+
+            # Loop through the indexes of the filetypes that are set
+            # to be generated
+            for i in true_index:
+                # If any filesize is zero, block submission and indicate
+                # which file the error corresponds to
+                if not filesize[i]:
+                    print(filetype_desc[i], 'must have nonzero size.')
+                    cmd_submit_flag = False
+
+                # If NetCDF4 is set to be created, check if any extra
+                # parameters are zero and block execution if they are
+                match filetype_desc[i]:
+                    case "NetCDF4":
+                        if not all(nc_info_vals):
+                            print('NetCDF4 size options must be nonzero')
+                            cmd_submit_flag = False
+
+            return cmd_submit_flag
+
+
+        display(self.main)
+        submit_btn = self.submit_button(observer_cmds=observer_cmds, submit_cmds=submit_cmds)
+        wg_lst.append(submit_btn)
+
+        [v.close() for v in wg_lst]
