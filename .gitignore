@@ -1,4 +1,4 @@
 .ipynb_checkpoints/
 .cloud-data-benchmarks.json
-user_input.json
+benchmark_info.json
 **/__pycache__/

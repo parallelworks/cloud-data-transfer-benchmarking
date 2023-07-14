@@ -64,6 +64,7 @@ and install them if they are not there already.
 import ipywidgets as wg
 from jupyter_ui_poll import ui_events
 import time
+import os
 
 
 
@@ -328,7 +329,13 @@ class resourceWidgets(commonWidgets):
                             ]),
                         wg.HBox([wg.Label('Partition Name: '),
                                 wg.Text(placeholder='compute')
-                            ])
+                            ]),
+                        wg.HBox([wg.Label('CPUs/node: '),
+                                wg.IntText()
+                            ]),
+                        wg.HBox([wg.Label('Memory/node (GB): '),
+                                wg.FloatText()
+                                ])
                         ))
         return widget
 
@@ -344,8 +351,11 @@ class resourceWidgets(commonWidgets):
 
             for n in boxes:
                 for i in n.children:
-                    if len(i.children[1].value) == 0:
+                    if len(str(i.children[1].value)) == 0:
                         print('Ensure no fields are blank before submitting.')
+                        return False
+                    elif str(i.children[1].value)[0] == '0':
+                        print('Ensure all integer fields are nonzero and/or do not have leading zeros.')
                         return False
             
             return True
@@ -382,8 +392,12 @@ class resourceWidgets(commonWidgets):
             resources.append({"Name" : children[0].children[1].value,
                             "Controller" : "PW",
                             "CSP" : children[1].children[1].value,
-                            "Dask Options" : {"Scheduler" : children[2].children[1].value,
-                                              "Partition" : children[3].children[1].value}})
+                            "Dask" : {"Scheduler" : children[2].children[1].value,
+                                        "Partition" : children[3].children[1].value,
+                                        "CPUs" : children[4].children[1].value,
+                                        "Memory" : children[5].children[1].value
+                                        }
+                                              })
 
         print('\n-----------------------------------------------------------------------------')
         print('If you wish to change information about cloud resources, run this cell again.\n')
@@ -425,9 +439,16 @@ class storageWidgets(commonWidgets):
         widget = wg.VBox((wg.HBox([wg.Label('Storage URI/Mount Path: '),
                                 wg.Text(placeholder="gcs://my-bucket or /path/to/bucket")
                                 ]),
+                        wg.HBox([wg.Label('Bucket Type'),
+                                wg.Dropdown(options=('Public',
+                                                    'Private',
+                                                    'PW Mounted'))
+                                ]),
                          wg.HBox([wg.Label('Cloud Service Provider: '),
-                                wg.Dropdown(options=('GCP (URI)',
-                                                    'GCP (Mounted)'))
+                                wg.Dropdown(options=('GCP',))
+                                ]),
+                        wg.HBox([wg.Label('Credentials File (.json): '),
+                                wg.Text(placeholder='/path/to/token.json', disabled = True)
                                 ])
                         ))
         return widget
@@ -436,21 +457,40 @@ class storageWidgets(commonWidgets):
         "Identical code to the `.display()` method in `resourceWidgets`"
         box_list = [self.main]
 
+        def observer_cmds():
+            data = self.main.children
+            for i in data:
+                children = i.children
+                bucket_type = children[1].children[1].value
+                csp = children[2].children[1].value
+                if bucket_type == 'Private' and csp == 'GCP':
+                    children[3].children[1].disabled = False
+                else:
+                    children[3].children[1].disabled = True
+
+
+
         def submit_cmds():
             boxes = self.main.children
 
             for n in boxes:
                 for i in n.children:
-                    if len(i.children[1].value) == 0:
+                    if i.children[0].value == 'Credentials File (.json): ' and n.children[1].children[1].value != 'Private':
+                        pass
+                    elif len(i.children[1].value) == 0:
                         print('Ensure no fields are blank before submitting.')
                         return False
+                    elif i.children[0].value == 'Credentials File (.json): ' and n.children[1].children[1].value == 'Private':
+                        if not os.path.isfile(i.children[1].value):
+                            print('Credentials file not found. Ensure you have input the correct path.')
+                            return False
             
             return True
 
         btn_box = self.AppendBoxes(box_title='Cloud Object Store')
         box_list.append(btn_box)
         display(self.main)
-        submit_btn = self.submit_button(submit_cmds = submit_cmds)
+        submit_btn = self.submit_button(observer_cmds = observer_cmds, submit_cmds = submit_cmds)
         box_list.append(submit_btn)
         [v.close() for v in box_list]
 
@@ -461,7 +501,9 @@ class storageWidgets(commonWidgets):
         for i in data:
             children = i.children
             storage.append({"URI/Path" : children[0].children[1].value,
-                            "CSP" : children[1].children[1].value})
+                            "Type" : children[1].children[1].value,
+                            "CSP" : children[2].children[1].value,
+                            "Credentials" : children[3].children[1].value})
 
         print('\n--------------------------------------------------------------------------------------')
         print('If you wish to change information about cloud storage locations, run this cell again.\n')

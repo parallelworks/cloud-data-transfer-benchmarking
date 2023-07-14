@@ -29,7 +29,7 @@
 
 #                                     SCRIPT INPUTS
 #======================================================================================
-# install_python.sh '["<resource-1>","<resource-2>",...,"<resource-n>"]'
+# install_python.sh "<resource-1>","<resource-2>",...,"<resource-n>"
 #
 # Above is a sample call to this script. The only inputs given to this script should
 # be the name of the resources that conda and the corresponding environment will be
@@ -94,21 +94,33 @@ f_install_env() {
 
     # Check if the environment of the same name is already built in conda
     env_check=$( conda env list | grep -w ${my_env} | cut -d ' ' -f 1 )
+    update_env=0 # This line should be set to 1 if you wish to update
+                 # the conda environment, and 0 if you want to simply
+                 # declare that the environment exists and move on
+
     if [ "${env_check}" == "${my_env}" ] && [ -e ${env_filename} ]
     then
-        echo "Updating exisiting environment \"${my_env}\"..."
-        conda env update -n ${my_env} -f ${env_filename}
-        echo "Environment updated."
+        if [ ${update_env} -eq 1 ]
+        then
+            echo "Updating exisiting environment \"${my_env}\"..."
+            conda env update -n ${my_env} -f ${env_filename}
+            echo "Environment updated."
+        else
+            echo "Environment already exists!"
+        fi
         rm ${env_filename} # Clean up
+
     elif [ -e ${env_filename} ]
     then
         conda env create -f ${env_filename}
         # Will build environment from requirements file
         # if it exists
         rm ${env_filename} # Clean up
+
     elif [[ ${my_env} == "base" ]]
     then
         echo "Done installing packages in base environment."
+
     else
         # We often run Jupter notebooks so include ipython here.
         conda create -y --name ${my_env} python${python_version} ipython
@@ -124,7 +136,7 @@ f_install_env() {
         # Other more specialized packages.
         # Can be edited to desired evironment.
         conda install -y -c conda-forge dask
-        conda install -y -c conda-forge h5netcdf
+        conda install -y dask-jobqueue -c conda-forge
         conda install -y -c conda-forge xarray
         conda install -y -c conda-forge netCDF4
         conda install -y -c conda-forge bottleneck
@@ -135,6 +147,7 @@ f_install_env() {
         conda install -y -c conda-forge fastparquet
         pip install pyarrow
         pip install scipy
+        pip install h5netcdf
 
         # Write out the ${my_env}_requirements.yml to document environment
         conda env export > ${env_filename}
@@ -147,9 +160,9 @@ f_install_env() {
 #                                            EXECUTE INSTALLATION
 #=============================================================================================================
 # Loop executes conda installation and environment construction for each resource specificed in script inputs.
-local_wd=$(pwd)/utils
+local_wd=$( pwd )/setup-helpers/python-installation
 
-for resource in $(echo "$1" | jq -r '.[]')
+for resource in $@
 do
     miniconda_dir_ref=${miniconda_dir}
     echo "Will install to \"${miniconda_dir_ref}\""
