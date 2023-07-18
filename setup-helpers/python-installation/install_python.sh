@@ -165,12 +165,12 @@ local_wd=$( pwd )/setup-helpers/python-installation
 for resource in $@
 do
     miniconda_dir_ref=${miniconda_dir}
-    echo "Will install to \"${miniconda_dir_ref}\""
+    echo "Will install miniconda3 to \"${miniconda_dir_ref}\""
     # Install miniconda
-    echo -e "Installing Miniconda-${conda_version} on \"${resource}\"...\n"
-    ssh ${resource}.clusters.pw "$(typeset -f f_install_miniconda); \
+    echo -e "Installing Miniconda-${conda_version} on \"${resource}\"..."
+    ssh -q ${resource}.clusters.pw "$(typeset -f f_install_miniconda); \
                                  f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
-    echo -e "\nFinished installing Miniconda on \"${resource}\"."
+    echo -e "Finished installing Miniconda on \"${resource}\".\n"
 
     # Checks to see if local copy of requirements file exists.
     # If so, copies over to the current remote resource in the loop.
@@ -180,10 +180,10 @@ do
     fi
 
     # Build environment
-    echo -e "Building \"${conda_env}\" environment on \"${resource}\"...\n"
-    ssh ${resource}.clusters.pw "$(typeset -f f_install_env); \
+    echo -e "Building \"${conda_env}\" environment on \"${resource}\"..."
+    ssh -q ${resource}.clusters.pw "$(typeset -f f_install_env); \
                                  f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
-    echo -e "\nFinished building \"${conda_env}\" environment on \"${resource}\"."
+    echo -e "Finished building \"${conda_env}\" environment on \"${resource}\".\n"
 done
 
-echo -e "\nDone installing Miniconda-${conda_version} and building \`${conda_env}\` on all requested resources."
+echo -e "Done installing Miniconda-${conda_version} and building \`${conda_env}\` on all requested resources.\n\n"

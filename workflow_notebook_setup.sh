@@ -9,8 +9,8 @@
 # requested by the user.
 
 ##################MAIN PROGRAM######################
-# 1. MINICONDA INSTALLATION AND "cloud-data"
-#    ENVIRONMENT CONSTRUCTON:
+
+# 1. MINICONDA INSTALLATION AND "cloud-data" ENVIRONMENT CONSTRUCTON:
 resource_names=$( jq -r '.RESOURCES[] | .Name' benchmark_info.json )
 bash $( pwd )/setup-helpers/python-installation/install_python.sh ${resource_names}
 
@@ -19,43 +19,27 @@ bash $( pwd )/setup-helpers/python-installation/install_python.sh ${resource_nam
 bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 
 
-# 3. RANDOM NUMER FILE GENERATION:
-# Check if user has specified any randomly generated files to be created
-false_count=0
-for bool in $( jq -r '.RANDFILES[] | .Generate' benchmark_info.json )
+# 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
+# TODO: Finish transfer code in `transfer_user_data.sh`
+#bash $( pwd )/setup-helpers/transfer_user_data.sh
+
+
+# 4. RANDOM NUMER FILE GENERATION:
+generate_bools=$( jq -r '.RANDFILES[] | .Generate' benchmark_info.json )
+bash $( pwd )/setup-helpers/rand_files_local.sh ${generate_bools}
+
+
+# 5. COPY `benchmarks-core` TO ALL RESOURCES
+for resource in ${resource_names}
 do
-    let false_count++
-    if [ "${bool}" == "true" ]
-    then
-        echo Generating random files...
-        # Set resource to write randomly generated files
-        resource=$( jq -r '.RANDFILES[3] | .Resource' benchmark_info.json )
+    rsync -q $( pwd )/benchmarks-core ${resource}.clusters.pw:
 
-        # Copy over random file generator files and user input file to
-        # the resource identified above
-        copydir=$( pwd )/setup-helpers/random-file-generator
-        rsync -q -r ${copydir} ${resource}.clusters.pw:
-        scp -q benchmark_info.json ${resource}.clusters.pw:random-file-generator/
-
-        # Copy over token file (IN FUTURE RELEASE, THIS WILL NEED TO BE CHANGED)
-        for tokenpath in $( jq -r '.STORAGE[] | .Credentials' benchmark_info.json )
-        do
-            scp -q ${tokenpath} ${resource}.clusters.pw:random-file-generator/
-        done
-
-        # Execute random file generation on remote cluster and clean up
-        ssh ${resource}.clusters.pw "export LOCALDIR=$( pwd ); \
-                                    bash random-file-generator/run_rand_files.sh; \
-                                    rm -r random-file-generator"
-        break
-
-    # NOTE: Because of the way jq works, there will actually be 4 iterations of the loop
-    # even though there are only three randomly generated file options. The last ${bool}
-    # in the loop will always be null, because it is the fourth element in the .json array
-    # of RANDFILES. This fourth element contains information about the resource to write
-    # files with, hence why its value is `null`
-    elif [ ${false_count} -eq 4 ]
-    then
-        echo No randomly generated files will be created.
-    fi
+    # Copy over token file (IN FUTURE RELEASE, THIS WILL NEED TO BE CHANGED)
+    for tokenpath in $( jq -r '.STORAGE[] | .Credentials' benchmark_info.json )
+    do
+        if [ -n "${tokenpath}" ]
+        then
+            scp -q ${tokenpath} ${resource}.clusters.pw:benchmarks-core/
+        fi
+    done
 done

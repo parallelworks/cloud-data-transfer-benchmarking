@@ -2,6 +2,7 @@ import math
 import pandas as pd
 import dask.dataframe as dd
 import dask.array as da
+import os
     
 def setup(filesize : float):
     """Setup the dataframe that will be used to generate the csv file
@@ -32,7 +33,6 @@ def setup(filesize : float):
     df = dd.from_array(array)
 
     return df
-
 
 
 def write(filesize : float, location : str, bucket_type : str,  csp : str, token : str) -> str:
@@ -68,7 +68,8 @@ def write(filesize : float, location : str, bucket_type : str,  csp : str, token
     df = setup(filesize)
 
     # Set filename
-    full_path = location + 'random_' + str(filesize) + 'GB.csv'
+    filename = 'random_' + str(filesize) + 'GB_CSV/'
+    full_path = location + filename
 
 
     # Write CSV file to storage based on bucket type
@@ -82,11 +83,14 @@ def write(filesize : float, location : str, bucket_type : str,  csp : str, token
                             index=False,
                             storage_options={'token':token})
 
+        case 'PW Mounted':
+            os.system(f'mkdir -p {full_path}')
+            df.to_csv(f'file://{full_path}', header=None, index=False)
+
         case other:
-            # If public or mounted, no credentials required
             df.to_csv(full_path, header=None, index=False)
 
 
     # Print confirmation message and return path
-    print(f'File written to \"{full_path}\"')
-    return full_path
+    print(f'Files written to \"{full_path}\"')
+    return filename

@@ -34,6 +34,11 @@
         be used whenever a user doesn't have/doesn't want to supply their own
         dataset.
 
+    userdataWidget(commonWidgets)
+        Inhertited from commonWidgets. Sets up widgets that allow users to
+        input their own data sets. Data may be stored in cloud storage already,
+        or could be on the local filesystem.
+
 
    Boxes refers to the groups that widgets are placed
    in. In these helper classes, a box is referred to
@@ -437,12 +442,12 @@ class storageWidgets(commonWidgets):
     def widget_func(self):
         "Set widgets specific to cloud object storage for copying"
         widget = wg.VBox((wg.HBox([wg.Label('Storage URI/Mount Path: '),
-                                wg.Text(placeholder="gcs://my-bucket or /path/to/bucket")
+                                wg.Text(placeholder="e.g., gcs://my-bucket")
                                 ]),
                         wg.HBox([wg.Label('Bucket Type'),
                                 wg.Dropdown(options=('Public',
-                                                    'Private',
-                                                    'PW Mounted'))
+                                                    'Private'))# TODO: Fix issues with randomly file generation in PW mounted cloud storage,
+                                                    #'PW Mounted'))
                                 ]),
                          wg.HBox([wg.Label('Cloud Service Provider: '),
                                 wg.Dropdown(options=('GCP',))
@@ -500,7 +505,11 @@ class storageWidgets(commonWidgets):
         data = self.main.children
         for i in data:
             children = i.children
-            storage.append({"URI/Path" : children[0].children[1].value,
+            path = children[0].children[1].value
+            if path[-1] != '/':
+                path = path + '/'
+
+            storage.append({"Path" : path,
                             "Type" : children[1].children[1].value,
                             "CSP" : children[2].children[1].value,
                             "Credentials" : children[3].children[1].value})
@@ -583,15 +592,15 @@ class randgenWidgets(commonWidgets):
                             ])
 
         # Same widgets as CSV file widgets
-        binary_checkbox = create_checkbox()
-        binary_sizebox = create_sizebox()
-        binary_box = wg.VBox([binary_checkbox,
-                              binary_sizebox
-                            ])
+        # binary_checkbox = create_checkbox()
+        # binary_sizebox = create_sizebox()
+        # binary_box = wg.VBox([binary_checkbox,
+        #                       binary_sizebox
+        #                     ])
         
         # Populate main box with all randomly generated file widgets
-        main_box = wg.Tab(children=[csv_box, netcdf_box, binary_box],
-                          titles=('CSV', 'NetCDF4', 'Binary'))
+        main_box = wg.Tab(children=[csv_box, netcdf_box],#, binary_box],
+                          titles=('CSV', 'NetCDF4'))#, 'Binary'))
 
         # Place all widgets defined in this section into accordion object for display
         self.main = wg.Accordion(children=[rand_resource, main_box],
@@ -629,10 +638,12 @@ class randgenWidgets(commonWidgets):
                 "Float Coords" : fields[1][3].children[1].value,
                 "Time Coords" : fields[1][4].children[1].value
                 },
-                {"Format" : formats[2],
-                "Generate" : fields[2][0].children[1].value,
-                "SizeGB" : fields[2][1].children[1].value
-                },
+                
+                # TODO: Uncomment lines when Binary random file generation is 
+                # {"Format" : formats[2],
+                # "Generate" : fields[2][0].children[1].value,
+                # "SizeGB" : fields[2][1].children[1].value
+                # },
                 {"Resource" : self.main.children[0].children[1].value}
               ]
 
@@ -712,3 +723,211 @@ class randgenWidgets(commonWidgets):
         wg_lst.append(submit_btn)
 
         [v.close() for v in wg_lst]
+
+
+
+
+
+class userdataWidgets(commonWidgets):
+    """This class generates widgets that allow users to input information
+    about their own datasets for use in the benchmarking. Users input
+    the file format, location of the data (either one that exists already)
+    or one outside the scope of the benchmarking, and other accompanying
+    information.
+
+    Attributes
+    ----------
+    storage : list(dict) (default = None)
+        This parameter is important for passing information about previously-defined
+        cloud object stores to the widget. In the event the user chooses one of these
+        stores, all other options will be immediately filled in
+
+    Methods
+    -------
+    widget_func():
+        Defines the suite of widgets that will be used to generate this part of the UI.
+    display():
+        displays and runs the widgets defined, adding the functionality of add and delete
+        buttons, as well as a submit button
+    processInput():
+        Gathers the input recieved upon pressing the submit button and formats it into a
+        dictionary output
+    """
+
+
+    def __init__(self, storage=None):
+        "Initilaize class with information about previous storage and setup widget box"
+
+        self.storage = storage
+        self.storage_names = [store['Path'] for store in storage]
+
+        self.checkbox = wg.Checkbox(description='Provide datasets to workflow?')
+        main_box = self.widget_func()
+        self.main = wg.Accordion(children=[main_box], titles = ("User Dataset 1",), disabled = True)
+
+
+
+    def widget_func(self):
+        "Defines the widgets that will be used in this particular field of inputs"
+        widget = wg.VBox((wg.HBox([wg.Label("Data Format"),
+                                wg.Dropdown(options=('CSV',
+                                                    'NetCDF4',
+                                                    #'Binary',
+                                                    'Parquet',
+                                                    'Zarr'))
+                                    ]),
+                        wg.HBox([wg.Label("Storage Location: "),
+                                wg.Dropdown(options=tuple(self.storage_names + ['Other Cloud Storage', 'Local Filesystem']))
+                                ]),
+                        wg.HBox([wg.Label("Full URI/Path of Data: "),
+                                wg.Text()
+                                ]),
+                        wg.VBox([wg.Label('--------------------------------------------------------------------------------------------'),
+                                wg.Label('The following options are only valid for choice of \"Other Cloud Storage\"')
+                                ]),
+                        wg.HBox([wg.Label('Bucket Type: '),
+                                wg.Dropdown(options=('Public',
+                                                    'Private'), disabled=True)
+                                ]),
+                        wg.HBox([wg.Label('Cloud service provider: '),
+                                wg.Dropdown(options=('GCP',), disabled = True)
+                                ]),
+                        wg.HBox([wg.Label("Credentials File (.json): "),
+                                wg.Text(placeholder='/path/to/token.json', disabled=True)
+                                ]),
+                        ))
+        return widget
+
+
+
+    def display(self):
+        "Identical code to the `.display()` method in `resourceWidgets`"
+        box_list = [self.main]
+
+
+        # Observer commands are more complicated than other classes. See following
+        # comments for more information
+        def observer_cmds():
+            data = self.main.children
+
+            for i in data:
+                # Store one aspect of the UI in each variable
+                children = i.children
+                storage_location = children[1].children[1].value
+                uriOrPath = children[2].children[1]
+                bucket_type = children[4].children[1]
+                csp = children[5].children[1]
+                credentials = children[6].children[1]
+
+                # First, check the storage location. The placeholder for text
+                # boxes changes based on which storage location is selected.
+                # Additionally, if `Other Cloud Storage` is specified, activates
+                # fields for user to fill out information about the bucket type.
+                match storage_location:
+                    case 'Local Filesystem':
+                        uriOrPath.placeholder='/path/to/data'
+                        bucket_type.disabled = True
+                        csp.disabled = True
+                    case 'Other Cloud Storage':
+                        uriOrPath.placeholder = 'gs://my-bucket/path/to/data'
+                        bucket_type.disabled = False
+                        csp.disabled = False
+                    case other:
+                        uriOrPath.placeholder = storage_location + '/path/to/data'
+                        bucket_type.disabled = True
+                        csp.disabled = True
+                
+                # If the bucket type of 'Other Cloud Storage' is set to `Private`,
+                # activates a field allowing user to input their access token
+                # TODO: Will need to be changed in future
+                # updates to accomodate AWS S3 authenticiation.
+                if not bucket_type.disabled:
+                    match bucket_type.value:
+                        case 'Private':
+                            credentials.disabled = False
+                        case other:
+                            credentials.disabled = True
+
+
+        def submit_cmds():
+            boxes = self.main.children
+
+            # If user does not wish to use any of their own files,
+            # allow submission
+            if not self.checkbox.value:
+                return True
+
+            # Loop through each box in the accordion object
+            for n in boxes:
+                for i in n.children:
+                    # If the field in question is a credentials field and the field is not private, simply pass through
+                    # the conditional statement
+                    if i.children[0].value == 'Credentials File (.json): ' and n.children[3].children[1].value != 'Private':
+                        pass
+                    # If the box is not a credentials file field and is empty, let the user know
+                    elif len(i.children[1].value) == 0:
+                        print('Ensure no fields are blank before submitting.')
+                        return False
+                    # If the bucket type is private and the credentials file cannot be found, let the user know
+                    elif i.children[0].value == 'Credentials File (.json): ' and n.children[4].children[1].value == 'Private':
+                        if not os.path.isfile(i.children[1].value):
+                            print('Credentials file not found. Ensure you have input the correct path.')
+                            return False
+            # If all boxes pass the conditional statements, return successful submission
+            return True
+
+        display(self.checkbox)
+        box_list.append(self.checkbox)
+        btn_box = self.AppendBoxes(box_title='User Dataset')
+        box_list.append(btn_box)
+        display(self.main)
+        submit_btn = self.submit_button(observer_cmds = observer_cmds, submit_cmds = submit_cmds)
+        box_list.append(submit_btn)
+        [v.close() for v in box_list]
+
+
+
+    def processInput(self):
+        "New inputs can be defined and added on as the workflow develops"
+        user_data = []
+        data = self.main.children
+
+        if not self.checkbox.value:
+            pass
+        else:
+            for i in data:
+                children = i.children
+                storage_location = children[1].children[1].value
+
+                # First check to see if the storage location
+                # selected by the user matches those previously
+                # defined in the input process. If so, grab the
+                # bucket type and credentials files from those
+                # storage locations
+                for i in self.storage:
+                    if storage_location == i['Path']:
+                        bucket_type = i['Type']
+                        credentials = i['Credentials']
+                        csp = i['CSP']
+                        break
+
+                # Catch all other cases
+                if storage_location == 'Local Filesystem':
+                    bucket_type = 'Local'
+                    csp = 'Local'
+                    credentials = children[6].children[1].value
+                elif storage_location == 'Other Cloud Storage':
+                    bucket_type = children[4].children[1].value
+                    csp = children[5].children[1].value
+                    credentials = children[6].children[1].value
+
+                # Populate dictionary with fields
+                user_data.append({"Format" : children[0].children[1].value,
+                                "SourcePath" : children[2].children[1].value,
+                                "Type" : bucket_type,
+                                "CSP" : csp,
+                                "Credentials" : credentials})
+
+        print('\n---------------------------------------------------------------------------')
+        print('If you wish to change information about your input data, run this cell again.\n')
+        return user_data

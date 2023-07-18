@@ -39,7 +39,7 @@ conda activate base
 local_dir=$( pwd )/setup-helpers/get-max-resource-nodes
 
 
-# LOOP THROUGH RESOURCES AND RUN THE ABOVE FUNCTION ON EACH
+# LOOP THROUGH RESOURCES AND RUN THE ABOVE FUNCTION ON EACH RESOURCE
 
 # Number of resources input by the user
 num_resources=$( jq -r '.RESOURCES[] | length' benchmark_info.json | wc -l )

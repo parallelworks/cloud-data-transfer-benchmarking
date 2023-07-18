@@ -1,5 +1,6 @@
 import os
 import gcsfs
+import dask.array as da
 
 
 
@@ -88,12 +89,15 @@ def write(filesize : float, location : str, bucket_type : str, csp : str, token 
     bytefilesize = setup(filesize)
     
     # Set filename
-    full_path = location + 'random_' + str(filesize) + 'GB.bin'
+    filename = 'random_' + str(filesize) + 'GB.bin'
+    full_path = location + filename
 
 
     # Write binary file to cloud storage. If bucket is mounted, write
     # file like normal. If bucket is a URI, open filesystem and write
     # to the remote location
+    array = da.random.random()
+
     match bucket_type:
         case 'PW Mounted':
             with open(full_path, 'wb') as file:
@@ -107,4 +111,4 @@ def write(filesize : float, location : str, bucket_type : str, csp : str, token 
 
     # Print confirmation message and return file path
     print(f'File written to \"{full_path}\"')
-    return full_path
+    return filename

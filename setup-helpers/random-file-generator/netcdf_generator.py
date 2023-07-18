@@ -244,8 +244,9 @@ def write(filesize : float,
     # direct writes to remote cloud storage, if the storage is
     # not mounted it must be first created locally and copied
     # to cloud storage.
-    local_root = './random_' + str(filesize) + 'GB_NetCDF4/'
-    remote_root = location + local_root[2:]
+    filename = 'random_' + str(filesize) + 'GB_NetCDF4/'
+    local_root = './' + filename
+    remote_root = location + filename
     root = choose_root(local_root, remote_root, bucket_type)
 
     # Make an empty directory
@@ -271,4 +272,4 @@ def write(filesize : float,
 
     #Confirm successful write and return path of file
     print(f'Files written to \"{remote_root}\"')
-    return remote_root
+    return filename
