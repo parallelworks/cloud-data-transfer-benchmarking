@@ -70,14 +70,6 @@ if __name__ == '__main__':
 
 
 
-# Preprocessing step to ensure that URI(s) given by user
-# have a uniform format
-for i in storage_info:
-    # Create folder within bucket to hold randomly-generated files
-    i['Path'] = i['Path'] + 'cloud-data-transfer-benchmarking/randfiles/'
-
-
-
 # Main file generation loop. Writes requested
 # file formats and sizes to all resources used 
 # for benchmarking workflow.
@@ -90,46 +82,23 @@ for i in range(len(file_info)):
 
     # Will only generate the given file if generation bool is set to `True`
     if current_generate:
-        # Loop through all cloud storage locations
-        for n in range(len(storage_info)):
+        # Pass current variables to the file generator and generate the file based on
+        # current file format defined by the main loop
+        match current_file:
+            case "CSV":
+                print('Generating CSV...')
+                file_info[0]['Filename'] = csv.write(current_size, storage_info)
+                print('Done.')
 
-            # Set cloud storage location, credential token (can be 'None'
-            # if the location doesn't require a token), and cloud service provider
-            # of the object store for the current nested loop index
-            current_uri = storage_info[n]['Path']
-            current_csp = storage_info[n]['CSP']
-            current_token = storage_info[n]['Credentials'].split('/')[-1]
-            current_bucket_type = storage_info[n]['Type']
+            case "NetCDF4":
+                print('Generating NetCDF4...')
+                file_info[1]['Filename'] = netcdf.write(current_size, storage_info, file_info[i])
+                print('Done.')
 
-            # Pass current variables to the file generator and generate the file based on
-            # current file format defined by the main loop
-            match current_file:
-                case "CSV":
-                    print('Generating CSV...')
-                    file_info[0]['Filename'] = csv.write(current_size,
-                                                        current_uri,
-                                                        current_bucket_type,
-                                                        current_csp,
-                                                        current_token)
-                    print('Done.')
-                case "NetCDF4":
-                    print('Generating NetCDF4...')
-                    file_info[1]['Filename'] = netcdf.write(current_size,
-                                                            current_uri,
-                                                            current_bucket_type,
-                                                            current_csp,
-                                                            current_token,
-                                                            file_info[i])
-                    print('Done.')
-                case "Binary":
-                    print('Generating binary file...')
-                    file_info[2]['Filename'] = binary.write(current_size,
-                                                            current_uri,
-                                                            current_bucket_type,
-                                                            current_csp,
-                                                            current_token)
-                    print('Done.')
-        # End of nested loop
+            case "Binary":
+                print('Generating binary file...')
+                file_info[2]['Filename'] = binary.write(current_size, storage_info)
+                print('Done.')
     # End of `generate` conditional
 # End of main loop
 

@@ -70,6 +70,7 @@ import ipywidgets as wg
 from jupyter_ui_poll import ui_events
 import time
 import os
+import subprocess
 
 
 
@@ -327,7 +328,7 @@ class resourceWidgets(commonWidgets):
                                  wg.Text(placeholder='my-cluster')
                                 ]),
                         wg.HBox([wg.Label('Cloud Service Provider: '),
-                                wg.Dropdown(options=('GCP',))
+                                wg.Dropdown(options=('GCP', 'AWS'))
                             ]),
                         wg.HBox([wg.Label('Resource Manager: '),
                                 wg.Dropdown(options=('SLURM',))
@@ -395,7 +396,7 @@ class resourceWidgets(commonWidgets):
         for i in boxes:
             children = i.children
             resources.append({"Name" : children[0].children[1].value,
-                            "Controller" : "PW",
+                            #"Controller" : "PW",
                             "CSP" : children[1].children[1].value,
                             "Dask" : {"Scheduler" : children[2].children[1].value,
                                         "Partition" : children[3].children[1].value,
@@ -441,8 +442,8 @@ class storageWidgets(commonWidgets):
 
     def widget_func(self):
         "Set widgets specific to cloud object storage for copying"
-        widget = wg.VBox((wg.HBox([wg.Label('Storage URI/Mount Path: '),
-                                wg.Text(placeholder="e.g., gcs://my-bucket")
+        widget = wg.VBox((wg.HBox([wg.Label('Storage URI: '),
+                                wg.Text(placeholder="gcs://my-bucket or s3://my-bucket")
                                 ]),
                         wg.HBox([wg.Label('Bucket Type'),
                                 wg.Dropdown(options=('Public',
@@ -450,10 +451,10 @@ class storageWidgets(commonWidgets):
                                                     #'PW Mounted'))
                                 ]),
                          wg.HBox([wg.Label('Cloud Service Provider: '),
-                                wg.Dropdown(options=('GCP',))
+                                wg.Dropdown(options=('GCP', 'AWS'))
                                 ]),
-                        wg.HBox([wg.Label('Credentials File (.json): '),
-                                wg.Text(placeholder='/path/to/token.json', disabled = True)
+                        wg.HBox([wg.Label('Credentials: '),
+                                wg.Text(disabled = True)
                                 ])
                         ))
         return widget
@@ -466,12 +467,38 @@ class storageWidgets(commonWidgets):
             data = self.main.children
             for i in data:
                 children = i.children
+                path = children[0].children[1].value
                 bucket_type = children[1].children[1].value
-                csp = children[2].children[1].value
-                if bucket_type == 'Private' and csp == 'GCP':
-                    children[3].children[1].disabled = False
+                csp = children[2].children[1]
+                credentials = children[3].children[1]
+                credentials_desc = children[3].children[0].value
+
+                # Determine csp from URI
+                uri_prefix = path.split(':')[0]
+                if uri_prefix == 'gs' or uri_prefix == 'gcs':
+                    csp.disabled = True
+                    csp.value = 'GCP'
+                elif uri_prefix == 's3':
+                    csp.disabled = True
+                    csp.value = 'AWS'
                 else:
-                    children[3].children[1].disabled = True
+                    csp.disabled = False
+
+                # Determine value of credentials input field based on bucket type and CSP
+                if bucket_type == 'Private':
+                    match csp.value:
+                        case 'GCP':
+                            credentials.disabled = False
+                            credentials_desc = 'Service Account Token File'
+                            credentials.placeholder = '/path/to/token/file.json'
+                        case 'AWS':
+                            credentials.disabled = False
+                            credentials_desc = 'AWS Profile Name'
+                            credentials.placeholder = 'default'         
+                else:
+                    credentials.disabled = True
+                    credentials.value = ''
+                    credentials.placeholder = ''
 
 
 
@@ -480,15 +507,36 @@ class storageWidgets(commonWidgets):
 
             for n in boxes:
                 for i in n.children:
-                    if i.children[0].value == 'Credentials File (.json): ' and n.children[1].children[1].value != 'Private':
+                    if i.children[1].value == n.children[3].children[1].value and n.children[1].children[1].value != 'Private':
                         pass
+
+                    elif i.children[1].value == n.children[3].children[1].value and n.children[1].children[1].value == 'Private':
+                        match n.children[2].children[1].value:
+                            case 'AWS':
+                                home = os.path.expanduser('~')
+                                file = f'{home}/.aws/credentials'
+
+                                if i.children[1].value:
+                                    profile = i.children[1].value
+                                else:
+                                    profile = i.children[1].placeholder
+                                profile_check = os.popen(f'cat {file} | grep -o -w "{profile}"').read().split("\n")[0]
+
+                            case other:
+                                file = i.children[1].value
+                                profile = ''
+                                profile_check = ''
+
+                        if not os.path.isfile(file):
+                            print('Credentials file not found. Ensure you have input the correct path.')
+                            return False
+                        elif profile != profile_check:
+                            print("Profile not found. Please check the files in \"~/.aws\" and ensure you have the correct spelling.")
+                            return False
+
                     elif len(i.children[1].value) == 0:
                         print('Ensure no fields are blank before submitting.')
                         return False
-                    elif i.children[0].value == 'Credentials File (.json): ' and n.children[1].children[1].value == 'Private':
-                        if not os.path.isfile(i.children[1].value):
-                            print('Credentials file not found. Ensure you have input the correct path.')
-                            return False
             
             return True
 
@@ -506,13 +554,20 @@ class storageWidgets(commonWidgets):
         for i in data:
             children = i.children
             path = children[0].children[1].value
-            if path[-1] != '/':
-                path = path + '/'
+            csp = children[2].children[1].value
+
+            if path[-1] == '/':
+                path = path[:-1]
+
+            if csp == 'AWS' and not children[3].children[1].value:
+                credentials = children[3].children[1].placeholder
+            else:
+                credentials = children[3].children[1].value
 
             storage.append({"Path" : path,
                             "Type" : children[1].children[1].value,
-                            "CSP" : children[2].children[1].value,
-                            "Credentials" : children[3].children[1].value})
+                            "CSP" : csp,
+                            "Credentials" : credentials})
 
         print('\n--------------------------------------------------------------------------------------')
         print('If you wish to change information about cloud storage locations, run this cell again.\n')
@@ -639,7 +694,7 @@ class randgenWidgets(commonWidgets):
                 "Time Coords" : fields[1][4].children[1].value
                 },
                 
-                # TODO: Uncomment lines when Binary random file generation is 
+                # TODO: Uncomment lines when Binary random file generation is fully-supported
                 # {"Format" : formats[2],
                 # "Generate" : fields[2][0].children[1].value,
                 # "SizeGB" : fields[2][1].children[1].value
@@ -758,6 +813,7 @@ class userdataWidgets(commonWidgets):
     def __init__(self, storage=None):
         "Initilaize class with information about previous storage and setup widget box"
 
+        # Get information about storage locations the user has already defined
         self.storage = storage
         self.storage_names = [store['Path'] for store in storage]
 
@@ -790,10 +846,10 @@ class userdataWidgets(commonWidgets):
                                                     'Private'), disabled=True)
                                 ]),
                         wg.HBox([wg.Label('Cloud service provider: '),
-                                wg.Dropdown(options=('GCP',), disabled = True)
+                                wg.Dropdown(options=('GCP', 'AWS'), disabled = True)
                                 ]),
-                        wg.HBox([wg.Label("Credentials File (.json): "),
-                                wg.Text(placeholder='/path/to/token.json', disabled=True)
+                        wg.HBox([wg.Label("Credentials: "),
+                                wg.Text(disabled=True)
                                 ]),
                         ))
         return widget
@@ -818,6 +874,7 @@ class userdataWidgets(commonWidgets):
                 bucket_type = children[4].children[1]
                 csp = children[5].children[1]
                 credentials = children[6].children[1]
+                credentials_desc = children[6].children[1].value
 
                 # First, check the storage location. The placeholder for text
                 # boxes changes based on which storage location is selected.
@@ -829,52 +886,80 @@ class userdataWidgets(commonWidgets):
                         bucket_type.disabled = True
                         csp.disabled = True
                     case 'Other Cloud Storage':
-                        uriOrPath.placeholder = 'gs://my-bucket/path/to/data'
+                        uriOrPath.placeholder = '<URI prefix>://my-bucket/path/to/data'
+                        uri_prefix = uriOrPath.value.split(':')[0]
+                        if uri_prefix == 'gs' or uri_prefix == 'gcs':
+                            csp.disabled = True
+                            csp.value = 'GCP'
+                        elif uri_prefix == 's3':
+                            csp.disabled = True
+                            csp.value = 'AWS'
+                        else:
+                            csp.disabled = False
                         bucket_type.disabled = False
-                        csp.disabled = False
                     case other:
                         uriOrPath.placeholder = storage_location + '/path/to/data'
                         bucket_type.disabled = True
                         csp.disabled = True
-                
+
                 # If the bucket type of 'Other Cloud Storage' is set to `Private`,
                 # activates a field allowing user to input their access token
-                # TODO: Will need to be changed in future
-                # updates to accomodate AWS S3 authenticiation.
                 if not bucket_type.disabled:
                     match bucket_type.value:
                         case 'Private':
-                            credentials.disabled = False
+                            match csp.value:
+                                case 'GCP':
+                                    credentials.disabled = False
+                                    credentials_desc = 'Service Account Token File: '
+                                    credentials.placeholder = '/path/to/token/file.json'
+                                case 'AWS':
+                                    credentials.disabled = False
+                                    credentials_desc = 'AWS Profile Name'
+                                    credentials.placeholder = 'default'
                         case other:
                             credentials.disabled = True
-
+                            credentials.value = ''
+                            credentials.placeholder = ''
+        # END INNER FUNCTION
 
         def submit_cmds():
             boxes = self.main.children
 
-            # If user does not wish to use any of their own files,
-            # allow submission
-            if not self.checkbox.value:
-                return True
-
-            # Loop through each box in the accordion object
             for n in boxes:
                 for i in n.children:
-                    # If the field in question is a credentials field and the field is not private, simply pass through
-                    # the conditional statement
-                    if i.children[0].value == 'Credentials File (.json): ' and n.children[3].children[1].value != 'Private':
+                    if i.children[1].value == n.children[6].children[1].value and n.children[3].children[1].value != 'Private':
                         pass
-                    # If the box is not a credentials file field and is empty, let the user know
+
+                    elif i.children[1].value == n.children[6].children[1].value and n.children[3].children[1].value == 'Private':
+                        match n.children[5].children[1].value:
+                            case 'AWS':
+                                home = os.path.expanduser('~')
+                                file = f'{home}/.aws/credentials'
+
+                                if i.children[1].value:
+                                    profile = i.children[1].value
+                                else:
+                                    profile = i.children[1].placeholder
+                                profile_check = os.popen(f'cat {file} | grep -o -w "{profile}"').read().split('\n')[0]
+
+                            case other:
+                                file = i.children[1].value
+                                profile = ''
+                                profile_check = ''
+
+                        if not os.path.isfile(file):
+                            print('Credentials file not found. Ensure you have input the correct path.')
+                            return False
+                        elif profile != profile_check:
+                            print("Profile not found. Please check the files in \"~/.aws\" and ensure you have the correct spelling.")
+                            return False
+
                     elif len(i.children[1].value) == 0:
                         print('Ensure no fields are blank before submitting.')
                         return False
-                    # If the bucket type is private and the credentials file cannot be found, let the user know
-                    elif i.children[0].value == 'Credentials File (.json): ' and n.children[4].children[1].value == 'Private':
-                        if not os.path.isfile(i.children[1].value):
-                            print('Credentials file not found. Ensure you have input the correct path.')
-                            return False
-            # If all boxes pass the conditional statements, return successful submission
+            
             return True
+        # END INNER FUNCTION
 
         display(self.checkbox)
         box_list.append(self.checkbox)
@@ -892,6 +977,9 @@ class userdataWidgets(commonWidgets):
         user_data = []
         data = self.main.children
 
+        # If the checkbox to use user input files is not checked,
+        # set inputs as empty (even if fields are filled in)
+        # TODO: Find a better way to do this
         if not self.checkbox.value:
             pass
         else:
@@ -902,7 +990,7 @@ class userdataWidgets(commonWidgets):
                 # First check to see if the storage location
                 # selected by the user matches those previously
                 # defined in the input process. If so, grab the
-                # bucket type and credentials files from those
+                # bucket type, credentials, and csp from those
                 # storage locations
                 for i in self.storage:
                     if storage_location == i['Path']:
@@ -911,7 +999,9 @@ class userdataWidgets(commonWidgets):
                         csp = i['CSP']
                         break
 
-                # Catch all other cases
+                # If storage location is local or other cloud storage,
+                # set bucket type, credentials, and csp depending on
+                # on user inputs
                 if storage_location == 'Local Filesystem':
                     bucket_type = 'Local'
                     csp = 'Local'
@@ -919,7 +1009,11 @@ class userdataWidgets(commonWidgets):
                 elif storage_location == 'Other Cloud Storage':
                     bucket_type = children[4].children[1].value
                     csp = children[5].children[1].value
-                    credentials = children[6].children[1].value
+                    # If csp is AWS and no credentials have been entered, assumes "default" profile
+                    if csp == 'AWS' and not children[6].children[1].value:
+                        credentials = children[6].children[1].placeholder
+                    else:
+                        credentials = children[6].children[1].value
 
                 # Populate dictionary with fields
                 user_data.append({"Format" : children[0].children[1].value,

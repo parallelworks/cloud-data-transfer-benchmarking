@@ -35,23 +35,33 @@ def setup(filesize : float):
     return df
 
 
-def write(filesize : float, location : str, bucket_type : str,  csp : str, token : str) -> str:
+def get_storage_options(csp, bucket_type, credentials):
+    """Depending on the cloud service provider and
+    bucket type, determines what the value of the
+    `storage_options` keyword argument should be
+    """
+    if bucket_type == 'Public':
+        storage_options = {'anon': True}
+    elif csp == 'GCP' and bucket_type == 'Private':
+        storage_options = {'token': credentials}
+    elif csp == 'AWS' and bucket_type == 'Private':
+        storage_options = {'anon': False, 'profile': credentials}
+    else:
+        storage_options = None
+
+    return storage_options
+
+
+def write(filesize : float, storage_info : dict) -> str:
     """Write CSV file to cloud storage
 
     Parameters
     ----------
     filesize : float
         Desired size of the randomly generated CSV file (in GB)
-    location : str
-        Cloud object store URI or local path to mounted filesystem
-    bucket_type : str
-        One of three options given from user input in `main.ipynb`:
-        Public, Private, or PW Mounted
-    csp : str
-        Cloud service provider of the bucket
-    token : str
-        Local path to the cloud storage access token. This will be located within
-        the randomly-generated file options folder of the cluster's head node
+    storage_info : dict
+        A dictionary containing information about all storage locations
+        that randomly-generated files are to be written to.
 
     Returns
     -------
@@ -69,28 +79,34 @@ def write(filesize : float, location : str, bucket_type : str,  csp : str, token
 
     # Set filename
     filename = 'random_' + str(filesize) + 'GB_CSV/'
-    full_path = location + filename
 
 
-    # Write CSV file to storage based on bucket type
-    match bucket_type:
-        case 'Private':
-            # If private bucket, determine which type of credentials to use
-            match csp:
-                case 'GCP':
-                    df.to_csv(full_path,
-                            header=None,
-                            index=False,
-                            storage_options={'token':token})
+    for n in range(len(storage_info)):
 
-        case 'PW Mounted':
+        # Grab info about current cloud storage location
+        current_uri = storage_info[n]['Path']
+        location = current_uri + '/cloud-data-transfer-benchmarking/randfiles'
+        csp = storage_info[n]['CSP']
+        credentials = storage_info[n]['Credentials'].split('/')[-1]
+        bucket_type = storage_info[n]['Type']
+
+        full_path = f'{location}/{filename}'
+
+        # Get storage options
+        storage_options = get_storage_options(csp, bucket_type, credentials)
+
+        # Write CSV file to storage based on bucket type
+        if bucket_type == 'PW Mounted':
             os.system(f'mkdir -p {full_path}')
-            df.to_csv(f'file://{full_path}', header=None, index=False)
+            df.to_csv(f'file:/{full_path}', header=None, index=False)
+        else:
+            df.to_csv(full_path,
+                    header=None,
+                    index=False,
+                    storage_options=storage_options)
 
-        case other:
-            df.to_csv(full_path, header=None, index=False)
 
+        # Print confirmation message and return path
+        print(f'Files written to \"{full_path}\"')
 
-    # Print confirmation message and return path
-    print(f'Files written to \"{full_path}\"')
-    return filename
+    return f'{filename}*'

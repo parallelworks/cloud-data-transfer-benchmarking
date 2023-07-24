@@ -33,8 +33,8 @@ get_max_nodes() {
 }
 
 
-# Source from conda environment jupyter notebook is running on
-source ${HOME}/pw/.miniconda3c/etc/profile.d/conda.sh
+# Source from miniconda embedded in every usercontainer
+source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
 local_dir=$( pwd )/setup-helpers/get-max-resource-nodes
 

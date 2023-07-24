@@ -20,26 +20,49 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
-# TODO: Finish transfer code in `transfer_user_data.sh`
-#bash $( pwd )/setup-helpers/transfer_user_data.sh
+bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
 # 4. RANDOM NUMER FILE GENERATION:
 generate_bools=$( jq -r '.RANDFILES[] | .Generate' benchmark_info.json )
-bash $( pwd )/setup-helpers/rand_files_local.sh ${generate_bools}
+bash $( pwd )/setup-helpers/random-file-generator/rand_files_local.sh ${generate_bools}
 
 
-# 5. COPY `benchmarks-core` TO ALL RESOURCES
+# 5. MAKE TRANSFER FILE LIST
+source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
+conda activate base
+python $( pwd )/setup-helpers/create_file_list.py
+conda deactivate
+
+
+# 6. COPY `benchmarks-core` AND STORAGE CREDENTIALS TO ALL RESOURCES
 for resource in ${resource_names}
 do
-    rsync -q $( pwd )/benchmarks-core ${resource}.clusters.pw:
+    # Copy `benchmarks-core` to current iteration's cluster
+    rsync -q -r $( pwd )/benchmarks-core ${resource}.clusters.pw:
+    scp -q benchmark_info.json ${resource}.clusters.pw:benchmarks-core/
 
-    # Copy over token file (IN FUTURE RELEASE, THIS WILL NEED TO BE CHANGED)
-    for tokenpath in $( jq -r '.STORAGE[] | .Credentials' benchmark_info.json )
+    # Copy over access credentials
+    num_storage=$( jq -r '.STORAGE[] | length' benchmark_info.json | wc -l )
+    for store_index in $( seq ${num_storage} )
     do
+        let store_index--
+        tokenpath=$( jq -r ".STORAGE[${store_index}] | .Credentials" benchmark_info.json )
+        csp=$( jq -r ".STORAGE[${store_index}] | .CSP" benchmark_info.json )
+
         if [ -n "${tokenpath}" ]
         then
-            scp -q ${tokenpath} ${resource}.clusters.pw:benchmarks-core/
+            # If credentials are AWS, rsync directory to remote node
+            case ${csp} in
+                AWS)
+                    awspath=${HOME}/.aws
+                    rsync -q -r ${awspath} ${resource}.clusters.pw:
+                    ;;
+                GCP)
+                    # For google credentials, copy them into random file generator
+                    scp -q ${tokenpath} ${resource}.clusters.pw:random-file-generator/
+                    ;;
+            esac
         fi
     done
 done

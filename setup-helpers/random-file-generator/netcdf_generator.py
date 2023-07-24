@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import gcsfs
+import s3fs
 
 
 def compute_dim_length(filesize : float, nc_info : dict) -> int:
@@ -145,11 +146,11 @@ def split_by_chunks(dataset):
 def create_filepath(root_path, counter):
     "Create unique filenames for each chunk of a NetCDF4 file"
     
-    filepath = f'{root_path}chunk{str(counter)}.nc'
+    filepath = f'{root_path}chunk{counter}.nc'
     return filepath
 
 
-def SetFileSystem(location : str, csp : str, token : str):
+def SetFileSystem(location : str, csp : str, credentials : str, bucket_type : str):
     """Opens a cloud storage filesystem to write to nonmounted locations
 
     Parameters
@@ -159,9 +160,13 @@ def SetFileSystem(location : str, csp : str, token : str):
     csp : str
         Cloud service provider of the bucket. Tells the function which filesystem
         to initialize
-    token : str
+    credentials : str
         Local path to the cloud storage access token. This will be located within
-        the randomly-generated file options folder of the cluster's head node
+        the randomly-generated file options folder of the cluster's head node. In
+        the case of AWS credentials, this will be a profile name that has permissions
+        to write to the S3 storage location.
+    bucket_type : str
+        One of two options: Public or Private
 
     Returns
     -------
@@ -170,32 +175,23 @@ def SetFileSystem(location : str, csp : str, token : str):
         in the function. Passed back to `write(...)`
     """
     
-    # TODO: Add S3 filesystem support
-    match csp:
-        case 'GCP':
-            fs = gcsfs.GCSFileSystem(location, token=token)
+    if csp == 'GCP' and bucket_type == 'Public':
+        fs = gcsfs.GCSFileSystem(location)
+
+    elif csp == 'GCP' and bucket_type == 'Private':
+        fs = gcsfs.GCSFileSystem(location, token=credentials)
+
+    elif csp == 'AWS' and bucket_type == 'Public':
+        fs = s3fs.S3FileSystem(location, anon=True)
+
+    elif csp == 'AWS' and bucket_type == 'Private':
+        fs = s3fs.S3FileSystem(location, profile=credentials)
+
     return fs
 
 
-def choose_root(local_root : str, remote_root : str, bucket_type : str):
-    "Determines which root path to use to write files"
 
-    match bucket_type:
-        case 'PW Mounted':
-            root = remote_root
-        case other:
-            root = local_root
-    
-    return root
-
-
-
-def write(filesize : float,
-        location : str,
-        bucket_type : str,
-        csp : str,
-        token : str,
-        nc_info : dict) -> str:
+def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
     """Generates NetCDF4 file of a given size. The generated NetCDF4 file
     may have any number of dimensions that a user wishes. Currently, this
     works by first making a local copy and then uploading to cloud storage.
@@ -208,19 +204,11 @@ def write(filesize : float,
     ----------
     filesize : float
         Desired size of the randomly generated NetCDF4 file (in GB)
-    location : str
-        Cloud object store URI or local path to mounted filesystem
-    bucket_type : str
-        One of three options given from user input in `main.ipynb`:
-        Public, Private, or PW Mounted
-    csp : str
-        Cloud service provider of the bucket
-    token : str
-        Local path to the cloud storage access token. This will be located within
-        the randomly-generated file options folder of the cluster's head node
+    storage_info : dict
+        A dictionary containing information about all storage locations
+        that randomly-generated files are to be written to.
     nc_info : dict
-        A dictionary containing information about the desired number of data
-        variables and axes to write the NetCDF4 file with
+        Contains information about the desired number of data variables and axes to use
 
     Returns
     -------
@@ -231,7 +219,6 @@ def write(filesize : float,
         or POSIX filesystem path corresponding to the locaton of the object if the
         storage is mounted
     """
-
 
     # Get dimension length and define dataset
     dim_length = compute_dim_length(filesize, nc_info)
@@ -246,30 +233,48 @@ def write(filesize : float,
     # to cloud storage.
     filename = 'random_' + str(filesize) + 'GB_NetCDF4/'
     local_root = './' + filename
-    remote_root = location + filename
-    root = choose_root(local_root, remote_root, bucket_type)
+
 
     # Make an empty directory
-    os.system(f'mkdir {root}')
+    os.system(f'mkdir {local_root}')
 
     # Assign filenames to each NetCDF4 subfile
     paths = []
     for i in range(len(datasets)):
-        paths.append(create_filepath(root, (i+1)))
+        if len(str(i)) == 1:
+            counter = f'0{i}'
+        else:
+            counter = str(i)
+
+        paths.append(create_filepath(local_root, counter))
         # Make empty files with the created filepaths
         os.system(f'touch {paths[i]}')
 
     # Create local copy of dataset in parallel
     xr.save_mfdataset(datasets=datasets, paths=paths)
 
-    # Copy local files to cloud storage if the bucket is not mounted
-    if bucket_type != 'PW Mounted':
-        fs = SetFileSystem(location, csp, token)
-        # TODO: Change next line to parallel upload
-        fs.put(root, remote_root, recursive=True)
-        os.system(f'rm -r {root}') # Remove local copies of files
+    # Loop through all storage locations and copy to cloud storage
+    for n in range(len(storage_info)):
+
+        # Grab info about current cloud storage location
+        current_uri = storage_info[n]['Path']
+        csp = storage_info[n]['CSP']
+        credentials = storage_info[n]['Credentials'].split('/')[-1]
+        bucket_type = storage_info[n]['Type']
+        remote_root = f'{current_uri}/cloud-data-transfer-benchmarking/randfiles/{filename}'
+
+        # Copy local files to cloud storage if the bucket is not mounted
+        if bucket_type != 'PW Mounted':
+            fs = SetFileSystem(current_uri, csp, credentials, bucket_type)
+            fs.put(local_root, remote_root, recursive=True)
+            del fs
 
 
-    #Confirm successful write and return path of file
-    print(f'Files written to \"{remote_root}\"')
-    return filename
+        #Confirm successful write
+        print(f'Files written to \"{remote_root}\"')
+    
+    # Remove local files
+    os.system(f'rm -r {location}')
+
+    # Return the name of the randomly generated file
+    return f'{filename}*'
