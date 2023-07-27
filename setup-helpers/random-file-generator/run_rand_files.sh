@@ -7,7 +7,7 @@ source .miniconda3/etc/profile.d/conda.sh
 conda activate cloud-data
 
 cd random-file-generator
-python rand_files.py
+python -u rand_files.py # Use `-u` flag to disable output buffering
 
 scp -q benchmark_info.json usercontainer:${LOCALDIR} # Send amended benchmark info file back to user container
 

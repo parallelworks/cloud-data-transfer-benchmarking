@@ -15,6 +15,16 @@
 # multiple credentials files cannot be used for a single transfer.   #
 ######################################################################
 
+
+# TODO: Add functionality that prevents user files from being transferred
+# to other buckets that already have that particular dataset in it.
+
+# Possible solution to this is to rework input scheme to specify a dataset
+# name and the cloud storage locations it already exists in, rather than
+# reinputing it every single time
+
+
+
                         # MAIN PROGRAM #
 ######################################################################
 # Find number of userfiles and storage locations
@@ -37,8 +47,8 @@ do
         storepath=$( jq -r ".STORAGE[${store_index}] | .Path" benchmark_info.json )
         uploadpath="${storepath}/cloud-data-transfer-benchmarking/userfiles"
 
-        # Only transfer files if they are not already stored in the current bucket
-        if [ "$( echo ${filepath} | grep -o -w ${storepath} )" != "${storepath}" ]
+        # Only transfer files if they are not already stored in the current bucket or they aren't in another bucket
+        if [ "$( echo ${filepath} | grep -o -w ${storepath} )" != "${storepath}" ] || [ ]
         then
             echo "Uploading \"${filepath}\" to \"${uploadpath}\"...."
 

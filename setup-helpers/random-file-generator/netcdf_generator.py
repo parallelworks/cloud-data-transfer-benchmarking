@@ -150,13 +150,11 @@ def create_filepath(root_path, counter):
     return filepath
 
 
-def SetFileSystem(location : str, csp : str, credentials : str, bucket_type : str):
+def SetFileSystem(csp : str, credentials : str, bucket_type : str):
     """Opens a cloud storage filesystem to write to nonmounted locations
 
     Parameters
     ----------
-    location : str
-        Cloud object store URI
     csp : str
         Cloud service provider of the bucket. Tells the function which filesystem
         to initialize
@@ -176,16 +174,16 @@ def SetFileSystem(location : str, csp : str, credentials : str, bucket_type : st
     """
     
     if csp == 'GCP' and bucket_type == 'Public':
-        fs = gcsfs.GCSFileSystem(location)
+        fs = gcsfs.GCSFileSystem(token='anon')
 
     elif csp == 'GCP' and bucket_type == 'Private':
-        fs = gcsfs.GCSFileSystem(location, token=credentials)
+        fs = gcsfs.GCSFileSystem(token=credentials)
 
     elif csp == 'AWS' and bucket_type == 'Public':
-        fs = s3fs.S3FileSystem(location, anon=True)
+        fs = s3fs.S3FileSystem(anon=True)
 
     elif csp == 'AWS' and bucket_type == 'Private':
-        fs = s3fs.S3FileSystem(location, profile=credentials)
+        fs = s3fs.S3FileSystem(anon=False, profile=credentials)
 
     return fs
 
@@ -265,7 +263,7 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
 
         # Copy local files to cloud storage if the bucket is not mounted
         if bucket_type != 'PW Mounted':
-            fs = SetFileSystem(current_uri, csp, credentials, bucket_type)
+            fs = SetFileSystem(csp, credentials, bucket_type)
             fs.put(local_root, remote_root, recursive=True)
             del fs
 
@@ -274,7 +272,7 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
         print(f'Files written to \"{remote_root}\"')
     
     # Remove local files
-    os.system(f'rm -r {location}')
+    os.system(f'rm -r {local_root}')
 
     # Return the name of the randomly generated file
     return f'{filename}*'

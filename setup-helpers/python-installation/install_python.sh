@@ -129,9 +129,9 @@ f_install_env() {
         conda activate ${my_env}
 
         # Install packages for connecting kernels to notebooks in base
-        conda install -y requests
-        conda install -y ipykernel
-        conda install -y -c anaconda jinja2
+        # conda install -y requests
+        # conda install -y ipykernel
+        # conda install -y -c anaconda jinja2
 
         # Other more specialized packages.
         # Can be edited to desired evironment.

@@ -20,6 +20,91 @@ import dask
 import intake_xarray
 
 
+def check_for_userpath(check_var, base_uri):
+    """Check if the input variable is a single filepath
+    or a list of filepaths from `file_list.json`. If the
+    input is a single filepath,simply return that path.
+
+    If the filepath is a list, there will only be two
+    possible paths: the original location of the data,
+    and the location that the data was transferred to.
+    If the base URI of the original location is the same
+    as the base uri of the input, then this function returns
+    the original filepath. Otherwise, the more general path
+    is taken.
+
+    Parameters
+    ----------
+    check_var : str OR list
+        A string of a filepath or list of two different
+        strings of filepaths.
+    base_uri : str
+        A base URI of a cloud storage location (e.g.,
+        "gs://my-bucket", "s3://my-bucket)
+
+    Returns
+    -------
+    str
+        A filepath
+
+    Examples
+    --------
+    1)
+        Inputs
+        ------
+        - check_var = ["gs://cloud-data-benchmarks/path/to/data.csv",
+                       "cloud-data-transfer-benchmarking/userfiles/data.csv"]
+        - base_uri = "gs://cloud-data-benchmarks
+
+        Output
+        ------
+        "path/to/data.csv"
+
+    2)
+        Inputs
+        ------
+        - check_var = (Same as example 1)
+        - base_uri = "s3://cloud-data-benchmarks
+
+        Output
+        ------
+        "cloud-data-transfer-benchmarking/userfiles/data.csv"
+
+    3)
+        Inputs
+        ------
+        - check_var = "cloud-data-transfer-benchmarking/userfiles/data.csv"
+        - base_uri = "gs://cloud-data-benchmarks"
+
+        Output
+        ------
+        "cloud-data-transfer-benchmarking/userfiles/data.csv
+    
+    4)
+        Inputs
+        ------
+        - check_var = ["gs://cloud-data-benchmarks/path/to/data.csv",
+                       "cloud-data-transfer-benchmarking/userfiles/data.csv",
+                       "s3://cloud-data-benchmarks/path/to/data.csv"]
+        - base_uri = "s3://cloud-data-benchmarks"
+
+        Output
+        ------
+        "/path/to/data.csv
+    """
+
+    if type(check_var) == str:
+        return check_var
+    elif type(check_var) == list:
+        matching_uri = [ele[(len(base_uri)+1):] for ele in check_var if ele[:len(base_uri)] == base_uri]
+        if any(matching_uri):
+            return matching_uri[0]
+        else:
+            return check_var[-1]
+
+
+
+
 def get_storage_options(csp, bucket_type, credentials):
     """Depending on the cloud service provider and
     bucket type, determines what the value of the
@@ -30,20 +115,18 @@ def get_storage_options(csp, bucket_type, credentials):
     elif csp == 'GCP' and bucket_type == 'Private':
         storage_options = {'token': credentials}
     elif csp == 'AWS' and bucket_type == 'Private':
-        storage_options = {'anon': False, 'profile_name': credentials}
+        storage_options = {'anon': False, 'profile': credentials}
     else:
         storage_options = None
 
     return storage_options
 
 
-def SetFileSystem(location : str, csp : str, bucket_type : str, storage_options : dict):
+def SetFileSystem(csp : str, bucket_type : str, storage_options : dict):
     """Opens a cloud storage filesystem to write to nonmounted locations
 
     Parameters
     ----------
-    location : str
-        Cloud object store URI
     csp : str
         Cloud service provider of the bucket. Tells the function which filesystem
         to initialize
@@ -60,32 +143,28 @@ def SetFileSystem(location : str, csp : str, bucket_type : str, storage_options 
     """
     
     if csp == 'GCP' and bucket_type == 'Public':
-        fs = gcsfs.GCSFileSystem(location)
+        fs = gcsfs.GCSFileSystem()
 
     elif csp == 'GCP' and bucket_type == 'Private':
-        fs = gcsfs.GCSFileSystem(location, token=storage_options['token'])
+        fs = gcsfs.GCSFileSystem(token=storage_options['token'])
 
     elif csp == 'AWS' and bucket_type == 'Public':
-        fs = s3fs.S3FileSystem(location, anon=storage_options['anon'])
+        fs = s3fs.S3FileSystem(anon=storage_options['anon'])
 
     elif csp == 'AWS' and bucket_type == 'Private':
-        fs = s3fs.S3FileSystem(location, anon=storage_options['anon'], profile=storage_options['profile_name'])
+        fs = s3fs.S3FileSystem(anon=storage_options['anon'], profile=storage_options['profile'])
 
     return fs
 
 
-def combine_nc_subfiles(store, file, storage_options, filesystem):
-
-    subfiles = filesystem.ls(f'{base_uri}/{file}')
+def combine_nc_subfiles(base_uri, file, storage_options, filesystem):
+    subfiles = filesystem.ls(f'{base_uri}/{file[:-1]}')
     uri_prefix = base_uri.split('//')[0]
     datasets = []
 
     for subfile in subfiles:
         subset = intake_xarray.netcdf.NetCDFSource(f'{uri_prefix}//{subfile}', storage_options=storage_options, chunks={}).to_dask()
-        datasets.append(subset)
-    ds = xr.combine_by_coords(datasets)
-    
-    return ds
+        yield subset
 
 
 

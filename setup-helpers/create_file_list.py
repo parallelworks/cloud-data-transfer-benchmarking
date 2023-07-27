@@ -18,41 +18,66 @@ def get_filenames(userfiles, randfiles, supported_formats):
     for file_format in supported_formats:
         file_list = []
 
-        for userfile in userfiles:
-            # If userfile is one of the supported formats, add it to the list
-            if userfile['Format'] == file_format:
+        # USER-DEFINED FILES SECTION
+        # Get the base dataset names of all Source Paths provided in the userfiles section of the benchmark info
+        current_userfiles = [file['SourcePath'] for file in userfiles if file['Format'] == file_format] # Files that match the current format
+        split_paths = [path.split('/') for path in current_userfiles] # Split the URI path of each userfile
+        tmp_names = [name[-1] for name in split_paths] # Store temporary names of the datasets. Could be a filename or "*""
 
-                # Separate filename from URI that the user input
-                split_path = [ele for ele in userfile['Path'].split('/') if len(ele) != 0]
-                filename = split_path[-1]
+        # Check for `*`. If so, take the second-to-last element of the split path as the dataset identifier
+        for i, tmp_name in enumerate(tmp_names):
+            if tmp_name == '*':
+                tmp_name = f'{split_paths[i][-2]}/{tmp_name}'
+        
+        # Populate a dictionary containing unique dataset names and the indices at which they occur in `tmp_names`
+        user_datasets = {}
+        for i, name in enumerate(tmp_names):
+            if name not in user_datasets:
+                user_datasets[name] = [i]
+            elif name in user_datasets:
+                user_datasets[name].append(i)
 
-                # If filename is `*`, change the filename to be `<filename>/*`
-                match filename:
-                    case '*':
-                        filename = f'{split_path[-2]}/{filename}'
+        # Iterate through the dataset dictionary and store all the original URIs of a unique dataset.
+        # After this, append the list of all possile storage locations of that dataset to a list of
+        # the current file format
+        for key, value in user_datasets.items():
+            tmp_list = [current_userfiles[index] for index in value]
+            tmp_list.append(f'cloud-data-transfer-benchmarking/userfiles/{key}')
+            file_list.append(tmp_list)
 
-                file_list.append(f'cloud-data-transfer-benchmarking/userfiles/{filename}')
 
+
+        # RANDOMLY-GENRATED FILES SECTION
         # Since randfiles were created with the correct path, simply check if it was generated
         for randfile in randfiles:
-            if randfile['Generate'] and randfile['Format'] == file_format:
-                file_list.append(randfile['Path']) 
+            if randfile['Generate'] == True and randfile['Format'] == file_format:
+                filename = randfile['Filename']
+                file_list.append(f'cloud-data-transfer-benchmarking/randfiles/{filename}')
 
         yield file_list
     
 
-
+# Load user input .json file
 with open('benchmark_info.json', 'r') as infile:
     user_input = json.loads(infile.read())
 
+# Populate variabels with information about user-defined datasets
+# and randomly-genrated data
 userfiles = user_input['USERFILES']
-randfiles = user_input['RANDFILES']
+randfiles = user_input['RANDFILES'][:-1]
+
+# Set list of supported formats. If more formats are added to the
+# benchmarking, the new formats will need to be added to this list
 supported_formats = ['CSV', 'NetCDF4', 'Binary', 'Parquet', 'Zarr']
 
+# Call generator function to get the overall file list. Form this
+# into a dictionary that contains info about all files to be used
+# in the benchmarking and their respective format
 file_list = list(get_filenames(userfiles, randfiles, supported_formats))
 output_list = dict(zip(supported_formats, file_list))
 
-
+# Write file list to `benchmarks-core` to be used in read/write
+# operations in the benchmarking
 output_json = json.dumps(output_list)
 with open('benchmarks-core/file_list.json', 'w') as outfile:
     outfile.write(output_json)

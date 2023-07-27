@@ -20,7 +20,8 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
-bash $( pwd )/setup-helpers/transfer_user_data.sh
+# TODO: `transfer_user_data.sh` needs work still
+#bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
 # 4. RANDOM NUMER FILE GENERATION:
@@ -31,7 +32,7 @@ bash $( pwd )/setup-helpers/random-file-generator/rand_files_local.sh ${generate
 # 5. MAKE TRANSFER FILE LIST
 source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
-python $( pwd )/setup-helpers/create_file_list.py
+python -u $( pwd )/setup-helpers/create_file_list.py
 conda deactivate
 
 
@@ -59,8 +60,8 @@ do
                     rsync -q -r ${awspath} ${resource}.clusters.pw:
                     ;;
                 GCP)
-                    # For google credentials, copy them into random file generator
-                    scp -q ${tokenpath} ${resource}.clusters.pw:random-file-generator/
+                    # For google credentials, copy them into `benchmarks-core`
+                    scp -q ${tokenpath} ${resource}.clusters.pw:benchmarks-core/
                     ;;
             esac
         fi

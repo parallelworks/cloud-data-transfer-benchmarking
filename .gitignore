@@ -2,3 +2,5 @@
 .cloud-data-benchmarks.json
 benchmark_info.json
 **/__pycache__/
+results/
+benchmarks-core/file_list.json

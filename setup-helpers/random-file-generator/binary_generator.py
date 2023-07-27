@@ -1,5 +1,6 @@
 import os
 import gcsfs
+import s3fs
 import dask.array as da
 
 
@@ -25,13 +26,11 @@ def setup(filesize : float) -> int:
 
 
 
-def SetFileSystem(location : str, bucket_type : str, csp : str, credentials : str):
+def SetFileSystem(bucket_type : str, csp : str, credentials : str):
     """Opens a cloud storage filesystem to write to nonmounted locations
 
     Parameters
     ----------
-    location : str
-        Cloud object store URI
     bucket_type : str
         One of two options: Private or Public
     csp : str
@@ -49,16 +48,16 @@ def SetFileSystem(location : str, bucket_type : str, csp : str, credentials : st
     """
     
     if csp == 'GCP' and bucket_type == 'Public':
-        fs = gcsfs.GCSFileSystem(location)
+        fs = gcsfs.GCSFileSystem(token='anon')
 
     elif csp == 'GCP' and bucket_type == 'Private':
-        fs = gcsfs.GCSFileSystem(location, token=token)
+        fs = gcsfs.GCSFileSystem(token=token)
 
     elif csp == 'AWS' and bucket_type == 'Public':
-        fs = s3fs.S3FileSystem(location, anon=True)
+        fs = s3fs.S3FileSystem(anon=True)
 
     elif csp == 'AWS' and bucket_type == 'Private':
-        fs = s3fs.S3FileSystem(location, anon=False, profile=credentials)
+        fs = s3fs.S3FileSystem(anon=False, profile=credentials)
 
     return fs
 
@@ -113,7 +112,7 @@ def write(filesize : float, storage_info : dict) -> str:
                     file.write(os.urandom(bytefilesize))
 
             case other:
-                fs = SetFileSystem(location, bucket_type, csp, credentials)
+                fs = SetFileSystem(bucket_type, csp, credentials)
                 with fs.open(full_path, 'wb') as file:
                     file.write(os.urandom(bytefilesize))
                 del fs
