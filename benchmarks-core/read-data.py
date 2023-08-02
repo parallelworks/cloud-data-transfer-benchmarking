@@ -143,7 +143,9 @@ for store in stores:
     bucket_type = store['Type']
     storage_options = store['Credentials']
 
-
+    if bucket_type == "Private" and csp == "GCP":
+        storage_options['token'] = benchmark_dir + '/storage-keys/' + storage_options['token'].split('/')[-1]
+        
     # Get storage options to pass into conversion functions as a kwarg. Also
     # set the filesystem used in the current bucket
     fs = fsspec.filesystem(base_uri.split(':')[0], **storage_options)

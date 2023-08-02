@@ -3,6 +3,7 @@ import pandas as pd
 import dask.dataframe as dd
 import dask.array as da
 import os
+import copy
     
 def setup(filesize : float):
     """Setup the dataframe that will be used to generate the csv file
