@@ -61,7 +61,7 @@ do
                 # Only copy credentials over if file exists
                 if [ -n "${tokenpath}" ]
                 then
-                    # For google credentials, copy them into `benchmarks-core`
+                    # For google credentials, copy them into `storage-keys`
                     scp -q ${tokenpath} ${resource}.clusters.pw:${remote_benchmark_dir}/storage-keys
                 fi
                 ;;

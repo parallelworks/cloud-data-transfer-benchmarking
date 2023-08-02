@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import fsspec
+import copy
 
 
 def compute_dim_length(filesize : float, nc_info : dict) -> int:
@@ -225,10 +226,12 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
         key_dir = f'{home}/cloud-data-transfer-benchmarking/storage-keys'
 
         if csp == 'GCP' and bucket_type == 'Private':
-            tmp_crds = storage_info[n]['Credentials']['token'].split('/')[-1]
-            storage_info[n]['Credentials']['token'] = f'{key_dir}/{tmp_crds}'
-
-        storage_options = storage_info[n]['Credentials']
+            storage_options = copy.copy(storage_info[n]['Credentials'])
+            tmp_crds = storage_options['token'].split('/')[-1]
+            storage_options['token'] = f'{key_dir}/{tmp_crds}'
+        else:
+            storage_options = storage_info[n]['Credentials']
+            
         remote_root = f'{current_uri}/cloud-data-transfer-benchmarking/randfiles/{filename}'
 
         # Copy local files to cloud storage if the bucket is not mounted

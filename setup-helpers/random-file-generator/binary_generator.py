@@ -66,11 +66,13 @@ def write(filesize : float, storage_info : dict) -> str:
         
         home = os.path.expanduser('~')
         key_dir = f'{home}/cloud-data-transfer-benchmarking/storage-keys'
-        if csp == 'GCP' and bucket_type == Private:
-            tmp_crds = storage_info[n]['Credentials']['token'].split('/')[-1]
-            storage_info[n]['Credentials']['token'] = f'{key_dir}/{tmp_crds}'
-
-        storage_options = storage_info[n]['Credentials']
+        
+        if csp == 'GCP' and bucket_type == 'Private':
+            storage_options = copy.copy(storage_info[n]['Credentials'])
+            tmp_crds = storage_options['token'].split('/')[-1]
+            storage_options['token'] = f'{key_dir}/{tmp_crds}'
+        else:
+            storage_options = storage_info[n]['Credentials']
 
         full_path = f'{location}/{filename}'
 
