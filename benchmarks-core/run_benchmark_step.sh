@@ -23,22 +23,24 @@ f_benchmark() {
     # Set user container path to write results to
     results_path_local=$2
     python_script=$3
+    benchmark_dir='cloud-data-transfer-benchmarking'
 
     source .miniconda3/etc/profile.d/conda.sh
     conda activate cloud-data
-    cd benchmarks-core
+    cd ${benchmark_dir}/benchmarks-core
 
     export resource_index=$1
     python -u ${python_script}
 
-    # Copy results back to user container
-    scp -q results_tmp.csv usercontainer:${results_path_local}
+    # Copy results back to user container and clean up
+    scp -q ${benchmark_dir}/outputs/results_tmp.csv usercontainer:${results_path_local}
+    rm results_tmp.csv
 }
 
                         # MAIN PROGRAM #
 ######################################################################
 
-resource_names=$( jq -r '.RESOURCES[] | .Name' benchmark_info.json )
+resource_names=$( jq -r '.RESOURCES[] | .Name' inputs.json )
 
 # Initialize resource tracking index and make results directory & file
 resource_index=0
@@ -53,7 +55,7 @@ do
     
 
     # Append results of current resource's test to a single file
-    cat ${results_path}/results_tmp.csv >> ${results_path}/{results_file}.csv
+    cat ${results_path}/results_tmp.csv >> ${results_path}/${results_file}
     rm ${results_path}/results_tmp.csv # Clean up tmp file
 
     let resource_index++

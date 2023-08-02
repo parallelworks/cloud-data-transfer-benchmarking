@@ -37,20 +37,21 @@ get_max_nodes() {
 source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
 local_dir=$( pwd )/setup-helpers/get-max-resource-nodes
+input_file='inputs.json'
 
 
 # LOOP THROUGH RESOURCES AND RUN THE ABOVE FUNCTION ON EACH RESOURCE
 
 # Number of resources input by the user
-num_resources=$( jq -r '.RESOURCES[] | length' benchmark_info.json | wc -l )
+num_resources=$( jq -r '.RESOURCES[] | length' ${input_file} | wc -l )
 
 # Loop through all resources specified by user
 for i in $( seq ${num_resources} )
 do
     let index=i-1 # Adjust index to follow base 0 indexing
-    resource=$( jq -r ".RESOURCES[${index}] | .Name" benchmark_info.json ) # grab resource name
-    partition=$( jq -r ".RESOURCES[${index}] | .Dask.Partition" benchmark_info.json ) # grab partition name
-    scheduler=$( jq -r ".RESOURCES[${index}] | .Dask.Scheduler" benchmark_info.json ) # grab scheduler name
+    resource=$( jq -r ".RESOURCES[${index}] | .Name" ${input_file} ) # grab resource name
+    partition=$( jq -r ".RESOURCES[${index}] | .Dask.Partition" ${input_file} ) # grab partition name
+    scheduler=$( jq -r ".RESOURCES[${index}] | .Dask.Scheduler" ${input_file} ) # grab scheduler name
 
     # Run `get_max_nodes` function on remote resource
     ssh ${resource}.clusters.pw "$(typeset -f get_max_nodes); \
@@ -60,7 +61,7 @@ do
     max_nodes=$( cat ${local_dir}/max_nodes )
     rm ${local_dir}/max_nodes
 
-    # Export environment variables and run python script to edit `benchmark_info.json``
+    # Export environment variables and run python script to edit `inputs.json`
     export index
     export max_nodes
     python ${local_dir}/recordmax.py

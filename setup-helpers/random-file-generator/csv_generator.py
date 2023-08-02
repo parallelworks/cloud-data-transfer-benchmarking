@@ -35,23 +35,6 @@ def setup(filesize : float):
     return df
 
 
-def get_storage_options(csp, bucket_type, credentials):
-    """Depending on the cloud service provider and
-    bucket type, determines what the value of the
-    `storage_options` keyword argument should be
-    """
-    if bucket_type == 'Public':
-        storage_options = {'anon': True}
-    elif csp == 'GCP' and bucket_type == 'Private':
-        storage_options = {'token': credentials}
-    elif csp == 'AWS' and bucket_type == 'Private':
-        storage_options = {'anon': False, 'profile': credentials}
-    else:
-        storage_options = None
-
-    return storage_options
-
-
 def write(filesize : float, storage_info : dict) -> str:
     """Write CSV file to cloud storage
 
@@ -87,13 +70,18 @@ def write(filesize : float, storage_info : dict) -> str:
         current_uri = storage_info[n]['Path']
         location = current_uri + '/cloud-data-transfer-benchmarking/randfiles'
         csp = storage_info[n]['CSP']
-        credentials = storage_info[n]['Credentials'].split('/')[-1]
         bucket_type = storage_info[n]['Type']
 
-        full_path = f'{location}/{filename}'
+        home = os.path.expanduser('~')
+        key_dir = f'{home}/cloud-data-transfer-benchmarking/storage-keys'
 
-        # Get storage options
-        storage_options = get_storage_options(csp, bucket_type, credentials)
+        if csp == 'GCP' and bucket_type == 'Private':
+            tmp_crds = storage_info[n]['Credentials']['token'].split('/')[-1]
+            storage_info[n]['Credentials']['token'] = f'{key_dir}/{tmp_crds}'
+
+        storage_options = storage_info[n]['Credentials']
+
+        full_path = f'{location}/{filename}'
 
         # Write CSV file to storage based on bucket type
         if bucket_type == 'PW Mounted':

@@ -6,7 +6,7 @@
 # to all cloud storage locations specified in the benchmark          #
 # info file. The transfer will only occur for data stored in a local #
 # filesystem or a cloud storage location that is not specified in    #
-# `benchmark_info.json`.                                             #
+# `inputs.json`.                                                     #
 #                                                                    #
 # Note that transfers between AWS buckets must have the same         #
 # profile. That is, the credentials file used must have access to    #
@@ -28,8 +28,9 @@
                         # MAIN PROGRAM #
 ######################################################################
 # Find number of userfiles and storage locations
-num_userfiles=$( jq -r '.USERFILES[] | length' benchmark_info.json | wc -l )
-num_storage=$( jq -r '.STORAGE[] | length' benchmark_info.json | wc -l )
+input_file='inputs.json'
+num_userfiles=$( jq -r '.USERFILES[] | length' ${input_file} | wc -l )
+num_storage=$( jq -r '.STORAGE[] | length' ${input_file} | wc -l )
 
 echo "Beginning transfer of user-defined datasets..."
 # Loop through all specified userfiles
@@ -37,14 +38,14 @@ for file_index in $( seq ${num_userfiles} )
 do
     let file_index--
     # Set the current iteration's filepath
-    filepath=$( jq -r ".USERFILES[${file_index}] | .SourcePath" benchmark_info.json )
+    filepath=$( jq -r ".USERFILES[${file_index}] | .SourcePath" ${input_file} )
 
     # Loop through all cloud storage locations
     for store_index in $( seq ${num_storage} )
     do
         let store_index--
         # Set current iteration's storage location
-        storepath=$( jq -r ".STORAGE[${store_index}] | .Path" benchmark_info.json )
+        storepath=$( jq -r ".STORAGE[${store_index}] | .Path" ${input_file} )
         uploadpath="${storepath}/cloud-data-transfer-benchmarking/userfiles"
 
         # Only transfer files if they are not already stored in the current bucket or they aren't in another bucket
@@ -54,10 +55,10 @@ do
 
             # Get info about the cloud service provider of the source and destination
             # locations. If the source is a local filesystem, CSP='Local'
-            file_csp=$( jq -r ".USERFILES[${file_index}] | .CSP" benchmark_info.json )
-            file_credentials=$(jq -r ".USERFILES[${file_index}] | .Credentials" benchmark_info.json )
-            storage_csp=$( jq -r ".STORAGE[${store_index}] | .CSP" benchmark_info.json )
-            store_credentials=$( jq -r ".STORAGE[${store_index}] | .Credentials" benchmark_info.json )
+            file_csp=$( jq -r ".USERFILES[${file_index}] | .CSP" ${input_file} )
+            file_credentials=$(jq -r ".USERFILES[${file_index}] | .Credentials" ${input_file} )
+            storage_csp=$( jq -r ".STORAGE[${store_index}] | .CSP" ${input_file} )
+            store_credentials=$( jq -r ".STORAGE[${store_index}] | .Credentials" ${input_file} )
 
             # Populate variables that will be used to handle globstrings
             filepath_no_glob=$( echo ${filepath} | cut -d "*" -f1 )

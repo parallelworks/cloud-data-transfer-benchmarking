@@ -4,8 +4,7 @@ import dask.array as da
 import pandas as pd
 import numpy as np
 import itertools
-import gcsfs
-import s3fs
+import fsspec
 
 
 def compute_dim_length(filesize : float, nc_info : dict) -> int:
@@ -30,7 +29,7 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
 
     dvars = nc_info['Data Variables']
     float_axes = nc_info['Float Coords']
-    time_axes = nc_info['Time Coords']
+    time_axes = 1
 
     # Define constants used for finding dimension lengths
     GB2Byte = 1000000000 # Conversion factor from GB to B
@@ -61,6 +60,7 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
 
 
 
+
 def define_dataset(nc_info : dict, dim_length : int):
     """Setup the xarray dataset that will be used to write the randomly-generated
     NetCDF4 file
@@ -84,7 +84,7 @@ def define_dataset(nc_info : dict, dim_length : int):
     # Load user input for axes and data variablees
     dvars = nc_info['Data Variables']
     float_axes = nc_info['Float Coords']
-    time_axes = nc_info['Time Coords']
+    time_axes = 1
 
     # Create axes
     axs_names = []
@@ -142,50 +142,11 @@ def split_by_chunks(dataset):
         yield dataset[selection]
 
 
-
 def create_filepath(root_path, counter):
     "Create unique filenames for each chunk of a NetCDF4 file"
     
     filepath = f'{root_path}chunk{counter}.nc'
     return filepath
-
-
-def SetFileSystem(csp : str, credentials : str, bucket_type : str):
-    """Opens a cloud storage filesystem to write to nonmounted locations
-
-    Parameters
-    ----------
-    csp : str
-        Cloud service provider of the bucket. Tells the function which filesystem
-        to initialize
-    credentials : str
-        Local path to the cloud storage access token. This will be located within
-        the randomly-generated file options folder of the cluster's head node. In
-        the case of AWS credentials, this will be a profile name that has permissions
-        to write to the S3 storage location.
-    bucket_type : str
-        One of two options: Public or Private
-
-    Returns
-    -------
-    fs : filesystem object
-        An object that references the cloud storage filesystem opened
-        in the function. Passed back to `write(...)`
-    """
-    
-    if csp == 'GCP' and bucket_type == 'Public':
-        fs = gcsfs.GCSFileSystem(token='anon')
-
-    elif csp == 'GCP' and bucket_type == 'Private':
-        fs = gcsfs.GCSFileSystem(token=credentials)
-
-    elif csp == 'AWS' and bucket_type == 'Public':
-        fs = s3fs.S3FileSystem(anon=True)
-
-    elif csp == 'AWS' and bucket_type == 'Private':
-        fs = s3fs.S3FileSystem(anon=False, profile=credentials)
-
-    return fs
 
 
 
@@ -234,7 +195,7 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
 
 
     # Make an empty directory
-    os.system(f'mkdir {local_root}')
+    os.system(f'mkdir -p {local_root}')
 
     # Assign filenames to each NetCDF4 subfile
     paths = []
@@ -251,21 +212,29 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
     # Create local copy of dataset in parallel
     xr.save_mfdataset(datasets=datasets, paths=paths)
 
+
     # Loop through all storage locations and copy to cloud storage
     for n in range(len(storage_info)):
 
         # Grab info about current cloud storage location
         current_uri = storage_info[n]['Path']
         csp = storage_info[n]['CSP']
-        credentials = storage_info[n]['Credentials'].split('/')[-1]
         bucket_type = storage_info[n]['Type']
+
+        home = os.path.expanduser('~')
+        key_dir = f'{home}/cloud-data-transfer-benchmarking/storage-keys'
+
+        if csp == 'GCP' and bucket_type == 'Private':
+            tmp_crds = storage_info[n]['Credentials']['token'].split('/')[-1]
+            storage_info[n]['Credentials']['token'] = f'{key_dir}/{tmp_crds}'
+
+        storage_options = storage_info[n]['Credentials']
         remote_root = f'{current_uri}/cloud-data-transfer-benchmarking/randfiles/{filename}'
 
         # Copy local files to cloud storage if the bucket is not mounted
         if bucket_type != 'PW Mounted':
-            fs = SetFileSystem(csp, credentials, bucket_type)
-            fs.put(local_root, remote_root, recursive=True)
-            del fs
+            fs = fsspec.filesystem(current_uri.split(':')[0], **storage_options)
+            fs.put(local_root, remote_root, recursive=True) # This needs to eventually be a multi-threaded copy
 
 
         #Confirm successful write

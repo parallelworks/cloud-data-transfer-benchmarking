@@ -78,19 +78,6 @@ f_install_env() {
 
     # Start conda and activate base environment
     source ${miniconda_dir}/etc/profile.d/conda.sh
-    conda activate base
-
-    # Install packages for hosting Jupyter notebooks
-    # NOTE: May not need these for cloud-data environments since
-    # the benchmarking isn't running on Jupyter servers hosted in
-    # the head nodes of clusters
-    #conda install -y ipython
-    #conda install -y -c conda-forge jupyter
-    #conda install -y nb_conda_kernels
-    #conda install -y -c anaconda jinja2
-    #conda install -y requests
-    #conda install nbconvert
-    #pip install remote_ikernel
 
     # Check if the environment of the same name is already built in conda
     env_check=$( conda env list | grep -w ${my_env} | cut -d ' ' -f 1 )
@@ -128,23 +115,33 @@ f_install_env() {
         # Jump into new environment
         conda activate ${my_env}
 
-        # Install packages for connecting kernels to notebooks in base
-        # conda install -y requests
-        # conda install -y ipykernel
-        # conda install -y -c anaconda jinja2
-
         # Other more specialized packages.
         # Can be edited to desired evironment.
+
+        # Dask
         conda install -y -c conda-forge dask
         conda install -y dask-jobqueue -c conda-forge
+
+        # Xarray
         conda install -y -c conda-forge xarray
         conda install -y -c conda-forge netCDF4
         conda install -y -c conda-forge bottleneck
         conda install -y -c conda-forge intake-xarray
-        conda install -y -c conda-forge matplotlib
+        conda install -y -c conda-forge fastparquet
+
+        # Remote filesystems
+        conda install -y -c conda-forge fsspec
         conda install -y -c conda-forge gcsfs
         conda install -y -c conda-forge s3fs
-        conda install -y -c conda-forge fastparquet
+        conda install -y -c conda-forge kerchunk
+        
+        # Plotting
+        conda install -y -c conda-forge matplotlib
+
+        # Other
+        conda install -y -c anaconda ujson
+
+        # Pip dependencies
         pip install pyarrow
         pip install scipy
         pip install h5netcdf

@@ -447,14 +447,14 @@ class storageWidgets(commonWidgets):
                                 ]),
                         wg.HBox([wg.Label('Bucket Type'),
                                 wg.Dropdown(options=('Public',
-                                                    'Private'))# TODO: Fix issues with randomly file generation in PW mounted cloud storage,
-                                                    #'PW Mounted'))
+                                                    'Private'))
                                 ]),
                          wg.HBox([wg.Label('Cloud Service Provider: '),
                                 wg.Dropdown(options=('GCP', 'AWS'))
                                 ]),
-                        wg.HBox([wg.Label('Credentials: '),
-                                wg.Text(disabled = True)
+                        wg.VBox([wg.Label('Credentials: '),
+                                wg.Text(disabled = True),
+                                wg.Text(disabled = True),
                                 ])
                         ))
         return widget
@@ -470,7 +470,7 @@ class storageWidgets(commonWidgets):
                 path = children[0].children[1].value
                 bucket_type = children[1].children[1].value
                 csp = children[2].children[1]
-                credentials = children[3].children[1]
+                credentials = children[3]
                 credentials_desc = children[3].children[0].value
 
                 # Determine csp from URI
@@ -488,17 +488,20 @@ class storageWidgets(commonWidgets):
                 if bucket_type == 'Private':
                     match csp.value:
                         case 'GCP':
-                            credentials.disabled = False
-                            credentials_desc = 'Service Account Token File'
-                            credentials.placeholder = '/path/to/token/file.json'
+                            credentials.children[1].disabled = False
+                            credentials.children[2].disabled = True
+                            credentials.children[1].placeholder = '/path/to/token/file.json'
+                            credentials.children[2].placeholder = ''
                         case 'AWS':
-                            credentials.disabled = False
-                            credentials_desc = 'AWS Profile Name'
-                            credentials.placeholder = 'default'         
+                            for cred in credentials.children[1:]:
+                                cred.disabled = False
+                            credentials.children[1].placeholder = 'AWS_ACCESS_KEY_ID'
+                            credentials.children[2].placeholder = 'AWS_SECRET_ACCESS_KEY'
                 else:
-                    credentials.disabled = True
-                    credentials.value = ''
-                    credentials.placeholder = ''
+                    for cred in credentials.children[1:]:
+                        cred.disabled = True
+                        cred.value = ''
+                        cred.placeholder = ''
 
 
 
@@ -512,27 +515,12 @@ class storageWidgets(commonWidgets):
 
                     elif i.children[1].value == n.children[3].children[1].value and n.children[1].children[1].value == 'Private':
                         match n.children[2].children[1].value:
-                            case 'AWS':
-                                home = os.path.expanduser('~')
-                                file = f'{home}/.aws/credentials'
-
-                                if i.children[1].value:
-                                    profile = i.children[1].value
-                                else:
-                                    profile = i.children[1].placeholder
-                                profile_check = os.popen(f'cat {file} | grep -o -w "{profile}"').read().split("\n")[0]
-
-                            case other:
+                            case 'GCP':
                                 file = i.children[1].value
-                                profile = ''
-                                profile_check = ''
 
-                        if not os.path.isfile(file):
-                            print('Credentials file not found. Ensure you have input the correct path.')
-                            return False
-                        elif profile != profile_check:
-                            print("Profile not found. Please check the files in \"~/.aws\" and ensure you have the correct spelling.")
-                            return False
+                                if not os.path.isfile(file):
+                                    print('Credentials file not found. Ensure you have input the correct path.')
+                                    return False
 
                     elif len(i.children[1].value) == 0:
                         print('Ensure no fields are blank before submitting.')
@@ -559,10 +547,15 @@ class storageWidgets(commonWidgets):
             if path[-1] == '/':
                 path = path[:-1]
 
-            if csp == 'AWS' and not children[3].children[1].value:
-                credentials = children[3].children[1].placeholder
+            if csp == 'AWS':
+                credentials = {'anon' : False}
+                labels = ['key', 'secret', 'session']
+                for index, child in enumerate(children[3].children[1:]):
+                    credentials[labels[index]] = child.value
+            elif csp == 'GCP':
+                credentials = {'token':children[3].children[1].value}
             else:
-                credentials = children[3].children[1].value
+                credentials = {'anon' : True}
 
             storage.append({"Path" : path,
                             "Type" : children[1].children[1].value,
@@ -637,13 +630,11 @@ class randgenWidgets(commonWidgets):
         netcdf_checkbox = create_checkbox()
         netcdf_sizebox = create_sizebox()
         datavars = create_sizebox(label='Data Variables: ', value=1)
-        floatax = create_sizebox(label='Float Axes: ', value=2)
-        timeax = create_sizebox(label='Time Axes: ', value=1)
+        floatax = create_sizebox(label='Axes (dtype = float64): ', value=2)
         netcdf_box = wg.VBox([netcdf_checkbox,
                               netcdf_sizebox,
                               datavars,
-                              floatax,
-                              timeax
+                              floatax
                             ])
 
         # Same widgets as CSV file widgets
@@ -659,7 +650,7 @@ class randgenWidgets(commonWidgets):
 
         # Place all widgets defined in this section into accordion object for display
         self.main = wg.Accordion(children=[rand_resource, main_box],
-                                titles=('Select Resources', 'Select Files to Generate'))
+                                titles=('Select Resource', 'Select Files to Generate'))
 
     def processInput(self):
         """Similar to all other `processInput()` methods, but specific to randomly
@@ -691,7 +682,6 @@ class randgenWidgets(commonWidgets):
                 "SizeGB" : fields[1][1].children[1].value,
                 "Data Variables" : fields[1][2].children[1].value,
                 "Float Coords" : fields[1][3].children[1].value,
-                "Time Coords" : fields[1][4].children[1].value
                 },
                 
                 # TODO: Uncomment lines when Binary random file generation is fully-supported
@@ -848,7 +838,8 @@ class userdataWidgets(commonWidgets):
                         wg.HBox([wg.Label('Cloud service provider: '),
                                 wg.Dropdown(options=('GCP', 'AWS'), disabled = True)
                                 ]),
-                        wg.HBox([wg.Label("Credentials: "),
+                        wg.VBox([wg.Label("Credentials: "),
+                                wg.Text(disabled=True),
                                 wg.Text(disabled=True)
                                 ]),
                         ))
@@ -873,7 +864,7 @@ class userdataWidgets(commonWidgets):
                 uriOrPath = children[2].children[1]
                 bucket_type = children[4].children[1]
                 csp = children[5].children[1]
-                credentials = children[6].children[1]
+                credentials = children[6]
                 credentials_desc = children[6].children[1].value
 
                 # First, check the storage location. The placeholder for text
@@ -909,17 +900,20 @@ class userdataWidgets(commonWidgets):
                         case 'Private':
                             match csp.value:
                                 case 'GCP':
-                                    credentials.disabled = False
-                                    credentials_desc = 'Service Account Token File: '
-                                    credentials.placeholder = '/path/to/token/file.json'
+                                    credentials.children[1].disabled = False
+                                    credentials.children[2].disabled = True
+                                    credentials.children[1].placeholder = '/path/to/token/file.json'
+                                    credentials.children[2].placeholder = ''
                                 case 'AWS':
-                                    credentials.disabled = False
-                                    credentials_desc = 'AWS Profile Name'
-                                    credentials.placeholder = 'default'
+                                    for cred in credentials.children[1:]:
+                                        cred.disabled = False
+                                        credentials.children[1].placeholder = 'AWS_ACCESS_KEY_ID'
+                                        credentials.children[2].placeholder = 'AWS_SECRET_ACCESS_KEY'
                         case other:
-                            credentials.disabled = True
-                            credentials.value = ''
-                            credentials.placeholder = ''
+                            for cred in credentials.children[1:]:
+                                cred.disabled = True
+                                cred.value = ''
+                                cred.placeholder = ''
         # END INNER FUNCTION
 
         def submit_cmds():
@@ -932,27 +926,14 @@ class userdataWidgets(commonWidgets):
 
                     elif i.children[1].value == n.children[6].children[1].value and n.children[3].children[1].value == 'Private':
                         match n.children[5].children[1].value:
-                            case 'AWS':
-                                home = os.path.expanduser('~')
-                                file = f'{home}/.aws/credentials'
-
-                                if i.children[1].value:
-                                    profile = i.children[1].value
-                                else:
-                                    profile = i.children[1].placeholder
-                                profile_check = os.popen(f'cat {file} | grep -o -w "{profile}"').read().split('\n')[0]
-
-                            case other:
+                            case 'GCP':
                                 file = i.children[1].value
                                 profile = ''
                                 profile_check = ''
 
-                        if not os.path.isfile(file):
-                            print('Credentials file not found. Ensure you have input the correct path.')
-                            return False
-                        elif profile != profile_check:
-                            print("Profile not found. Please check the files in \"~/.aws\" and ensure you have the correct spelling.")
-                            return False
+                                if not os.path.isfile(file):
+                                    print('Credentials file not found. Ensure you have input the correct path.')
+                                    return False
 
                     elif len(i.children[1].value) == 0:
                         print('Ensure no fields are blank before submitting.')
@@ -1009,11 +990,16 @@ class userdataWidgets(commonWidgets):
                 elif storage_location == 'Other Cloud Storage':
                     bucket_type = children[4].children[1].value
                     csp = children[5].children[1].value
-                    # If csp is AWS and no credentials have been entered, assumes "default" profile
-                    if csp == 'AWS' and not children[6].children[1].value:
-                        credentials = children[6].children[1].placeholder
+
+                    if csp == 'AWS':
+                        credentials = {'anon' : False}
+                        labels = ['key', 'secret', 'session']
+                        for index, child in enumerate(children[6].children[1:]):
+                                credentials[labels[index]] = child.value
+                    elif csp == "GCP":
+                        credentials = {'token': children[6].children[1].value}
                     else:
-                        credentials = children[6].children[1].value
+                        credentials = {'anon' : True}
 
                 # Populate dictionary with fields
                 user_data.append({"Format" : children[0].children[1].value,

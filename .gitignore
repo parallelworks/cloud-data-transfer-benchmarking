@@ -1,6 +1,6 @@
 .ipynb_checkpoints/
 .cloud-data-benchmarks.json
-benchmark_info.json
+inputs.json
 **/__pycache__/
 results/
-benchmarks-core/file_list.json
+file_list.json

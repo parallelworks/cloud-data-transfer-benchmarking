@@ -10,12 +10,20 @@
 
 ##################MAIN PROGRAM######################
 
+# Name input file and remote benchmarking directory
+# (DO NOT CHANGE)
+input_file='inputs.json'
+remote_benchmark_dir='cloud-data-transfer-benchmarking'
+
+
 # 1. MINICONDA INSTALLATION AND "cloud-data" ENVIRONMENT CONSTRUCTON:
-resource_names=$( jq -r '.RESOURCES[] | .Name' benchmark_info.json )
+resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
 bash $( pwd )/setup-helpers/python-installation/install_python.sh ${resource_names}
 
 
 # 2. GET MAXIMUM WORKER NODE COUNT FROM EACH RESOURCE INPUT BY USER
+# This step will eventually be used to also limit cluster resources
+# to be equal to the least-powerful cluster defined in the inputs
 bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 
 
@@ -24,46 +32,56 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 #bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
-# 4. RANDOM NUMER FILE GENERATION:
-generate_bools=$( jq -r '.RANDFILES[] | .Generate' benchmark_info.json )
+# 4. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
+for resource in ${resource_names}
+do
+    # Copy `benchmarks-core`, `random-file-generator`, and `inputs.json` to current iteration's cluster
+    # and make directories
+    ssh ${resource}.clusters.pw "mkdir -p ${remote_benchmark_dir}/storage-keys; \
+                                mkdir -p ${remote_benchmark_dir}/inputs; \
+                                mkdir -p ${remote_benchmark_dir}/outputs"
+    rsync -q -r $( pwd )/benchmarks-core ${resource}.clusters.pw:${remote_benchmark_dir}
+    rsync -q -r $( pwd )/setup-helpers/random-file-generator ${resource}.clusters.pw:${remote_benchmark_dir}
+    scp -q ${input_file} ${resource}.clusters.pw:${remote_benchmark_dir}/inputs
+
+
+    # Copy over access credentials (AWS credentials are provided as pure
+    # strings and stored in `inputs.json`, so there is no need to copy
+    # them over seperately)
+    num_storage=$( jq -r '.STORAGE[] | length' ${input_file} | wc -l )
+    for store_index in $( seq ${num_storage} )
+    do
+        let store_index-- # Decrement to adhere to base 0 indexing with `jq` command
+        csp=$( jq -r ".STORAGE[${store_index}] | .CSP" ${input_file} )
+
+        # For google credentials, copy them into `benchmarks-core`
+        case ${csp} in
+            GCP)
+                tokenpath=$( jq -r ".STORAGE[${store_index}] | .Credentials.token" ${input_file} )
+                # Only copy credentials over if file exists
+                if [ -n "${tokenpath}" ]
+                then
+                    # For google credentials, copy them into `benchmarks-core`
+                    scp -q ${tokenpath} ${resource}.clusters.pw:${remote_benchmark_dir}/storage-keys
+                fi
+                ;;
+        esac
+
+    done
+done
+
+# 5. RANDOM FILE GENERATION:
+generate_bools=$( jq -r '.RANDFILES[] | .Generate' ${input_file} )
 bash $( pwd )/setup-helpers/random-file-generator/rand_files_local.sh ${generate_bools}
+# Update input file in all clusters
+for resource in ${resource_names}
+do
+    scp -q ${input_file} ${resource}.clusters.pw:${remote_benchmark_dir}/inputs/${input_file}
+done
 
 
-# 5. MAKE TRANSFER FILE LIST
+# 6. MAKE .json OF FILES TO BE BENCHMARKED
 source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
 python -u $( pwd )/setup-helpers/create_file_list.py
-conda deactivate
-
-
-# 6. COPY `benchmarks-core` AND STORAGE CREDENTIALS TO ALL RESOURCES
-for resource in ${resource_names}
-do
-    # Copy `benchmarks-core` to current iteration's cluster
-    rsync -q -r $( pwd )/benchmarks-core ${resource}.clusters.pw:
-    scp -q benchmark_info.json ${resource}.clusters.pw:benchmarks-core/
-
-    # Copy over access credentials
-    num_storage=$( jq -r '.STORAGE[] | length' benchmark_info.json | wc -l )
-    for store_index in $( seq ${num_storage} )
-    do
-        let store_index--
-        tokenpath=$( jq -r ".STORAGE[${store_index}] | .Credentials" benchmark_info.json )
-        csp=$( jq -r ".STORAGE[${store_index}] | .CSP" benchmark_info.json )
-
-        if [ -n "${tokenpath}" ]
-        then
-            # If credentials are AWS, rsync directory to remote node
-            case ${csp} in
-                AWS)
-                    awspath=${HOME}/.aws
-                    rsync -q -r ${awspath} ${resource}.clusters.pw:
-                    ;;
-                GCP)
-                    # For google credentials, copy them into `benchmarks-core`
-                    scp -q ${tokenpath} ${resource}.clusters.pw:benchmarks-core/
-                    ;;
-            esac
-        fi
-    done
-done
+scp -q file_list.json ${resource}.clusters.pw:${remote_benchmark_dir}/inputs

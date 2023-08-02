@@ -18,7 +18,7 @@ the parallel upload continues smoothly.
 
 # Imports
 import os
-import json
+import ujson
 from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 import csv_generator as csv
@@ -27,8 +27,10 @@ import binary_generator as binary
 
 
 # Open user input file
-with open('benchmark_info.json', 'r') as infile:
-    user_input = json.loads(infile.read())
+home = os.path.expanduser('~')
+input_file = f'{home}/cloud-data-transfer-benchmarking/inputs/inputs.json'
+with open(input_file, 'r') as infile:
+    user_input = ujson.loads(infile.read())
 
 # Pull information about randomly generated files
 # and desired resource name
@@ -51,7 +53,7 @@ memory = f'{int(memory)} GB'
 
 # Define Dask Resource Manager and initialize scheduler
 if __name__ == '__main__':
-    dask_dir = '/mnt/shared/dask-worker-logs'
+    dask_dir = '/mnt/shared/dask/randfiles/dask-worker-logs'
     match dask_options['Scheduler']:
         case 'SLURM':
             cluster = SLURMCluster(account='randgen',
@@ -106,8 +108,8 @@ for i in range(len(file_info)):
 client.close() # Close SLURM cluster
 
 
-# Update `benchmark_info.json`
-user_input_update = json.dumps(user_input)
-with open('benchmark_info.json', 'w') as outfile:
+# Update `inputs.json`
+user_input_update = ujson.dumps(user_input)
+with open(input_file, 'w') as outfile:
     outfile.write(user_input_update)
 # END OF SCRIPT
