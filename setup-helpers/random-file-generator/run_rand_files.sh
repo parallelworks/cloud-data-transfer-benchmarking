@@ -9,4 +9,5 @@ conda activate cloud-data
 cd cloud-data-transfer-benchmarking/random-file-generator
 python -u rand_files.py # Use `-u` flag to disable output buffering
 
-scp -q /home/jgreen/cloud-data-transfer-benchmarking/inputs/inputs.json usercontainer:${LOCALDIR} # Send amended benchmark info file back to user container
+cd ..
+scp -q inputs/inputs.json usercontainer:${LOCALDIR} # Send amended benchmark info file back to user container
