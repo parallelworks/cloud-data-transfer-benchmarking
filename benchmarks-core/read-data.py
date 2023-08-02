@@ -142,11 +142,6 @@ for store in stores:
     csp = store['CSP']
     bucket_type = store['Type']
     storage_options = store['Credentials']
-    
-    # Change path of credentials files to match location on cluster
-    if bucket_type == "Private" and csp == "GCP":
-        storage_options['token'] = benchmark_dir + '/storage-keys/' + storage_options['token'].split('/')[-1]
-
 
 
     # Get storage options to pass into conversion functions as a kwarg. Also

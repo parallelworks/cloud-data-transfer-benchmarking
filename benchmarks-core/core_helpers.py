@@ -18,9 +18,9 @@ import dask
 import intake_xarray
 import numpy as np
 from scipy.stats import tstd
-from tempfile import TemporaryDirectory
 from kerchunk.combine import MultiZarrToZarr
 from kerchunk.hdf import SingleHdf5ToZarr
+import fsspec
 import ujson
 import glob
 
@@ -120,11 +120,11 @@ def check_for_userpath(check_var, base_uri):
             return check_var[-1]
 
 
-def combine_nc_subfiles(base_uri, file, storage_options, filesystem):
+def combine_nc_subfiles(base_uri, file, storage_options, fs):
     "Combines datasets that are made up of many NetCDF subfiles"
 
     # Gather files from globstring and the URI prefix to each
-    file_paths = filesystem.glob(f'{base_uri}/{file}')
+    file_paths = fs.glob(f'{base_uri}/{file}')
     uri_prefix = base_uri.split(':')[0]
     subfiles = sorted([f'{uri_prefix}://{file_path}' for file_path in file_paths])
 
@@ -157,30 +157,29 @@ def combine_nc_subfiles(base_uri, file, storage_options, filesystem):
 
 
     # Create a temp directory to store reference .json files
-    td = TemporaryDirectory()
-    temp_dir = td.name
+    temp_dir = '/mnt/shared'
 
     # Function to create a Kerchunk index from a NetCDF subfile
-    def generate_json_ref(file, output_dir):
+    def generate_json_ref(file, output_dir, fs):
         with fs.open(file) as infile:
             ncchunks = SingleHdf5ToZarr(infile, file)
             fname = file.split('/')[-1].strip(".nc")
             output = f"{output_dir}/{fname}.json"
-            with open(output) as outfile:
-                outfile.write(ujson.dumps(ncchunks.translate()).encode)
+            with open(output, 'wb') as outfile:
+                outfile.write(ujson.dumps(ncchunks.translate()).encode())
             return output
 
     # Use Dask to write the .json reference files in parallel
-    tasks = [dask.delayed(generate_json_ref)(file, temp_dir) for file in subfiles]
+    tasks = [dask.delayed(generate_json_ref)(file, temp_dir, fs) for file in subfiles]
     dask.compute(tasks)
     dataset_files = glob.glob(f"{temp_dir}/*.json")
 
-    mzz = MultiZarrtoZarr(dataset_files, concat_dims=coord_types['concat'], identical_dims=coord_types['identical'])
+    mzz = MultiZarrToZarr(dataset_files, concat_dims=coord_types['concat'], identical_dims=coord_types['identical'])
     multi_kerchunk = mzz.translate()
 
     output_filename = "references" + file.strip('/*') + ".json"
     with open(f"{output_filename}", "wb") as f:
-        f.write(ujson.dumps(multi_kerchunk).encode)
+        f.write(ujson.dumps(multi_kerchunk).encode())
 
     fs = fsspec.filesystem("reference",
                             remote_protocol = uri_prefix,
