@@ -26,6 +26,6 @@ For S3 buckets, the workflow handles authentication using the [method described 
 ## Jupyter Notebook Version Setup Guide
 Before interacting with any benchmark code, you must first start an interactive session in your user container:
 1. Navigate to the `WORKFLOWS` tab in the PW platform and click on Jupyter (if you do not have this workflow added, click on your profile in the upper right-hand corner of the screen, and then go to Marketplace. Find the Jupyter workflow, and click "Add Parallel Workflow")
-2. Click `Run Workflow`, and enter the fields as shown below (use the default conda path & environment, or choose your own):
-![image](image.png)
-3. Wait for the 
+2. Click `Run Workflow`, and choose to run the conda host on your user container. You may either use the default conda environments, or choose your own.
+3. Execute the workflow, click the eyeball icon, and navigate to the workflow directory.
+4. Start the Jupyter notebook `main.ipynb`, and follow the embedde directions.
