@@ -1,7 +1,11 @@
 #!/bin/bash
+miniconda_path=$1
+conda_env=$2
 
-source ${HOME}/.miniconda3c/etc/profile.d/conda.sh
-conda activate jupyter
+
+
+source ${miniconda_path}/etc/profile.d/conda.sh
+conda activate ${conda_env}
 
 
 if [ -z "$( conda list | grep -w "ipywidgets" | grep -w "8.0.5" )" ]

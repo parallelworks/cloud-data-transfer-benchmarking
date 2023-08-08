@@ -18,11 +18,14 @@ import dask
 import intake_xarray
 import numpy as np
 from scipy.stats import tstd
-from kerchunk.combine import MultiZarrToZarr
-from kerchunk.hdf import SingleHdf5ToZarr
+# from kerchunk.combine import MultiZarrToZarr
+# from kerchunk.hdf import SingleHdf5ToZarr
 import fsspec
 import ujson
 import glob
+from tempfile import TemporaryDirectory
+import copy
+import intake
 
 
 
@@ -120,73 +123,138 @@ def check_for_userpath(check_var, base_uri):
             return check_var[-1]
 
 
-def combine_nc_subfiles(base_uri, file, storage_options, fs):
-    "Combines datasets that are made up of many NetCDF subfiles"
-
-    # Gather files from globstring and the URI prefix to each
-    file_paths = fs.glob(f'{base_uri}/{file}')
-    uri_prefix = base_uri.split(':')[0]
-    subfiles = sorted([f'{uri_prefix}://{file_path}' for file_path in file_paths])
 
 
 
-    # Check to see which dimensions need to be concatenated
-    ds_chunk1 = intake_xarray.netcdf.NetCDFSource(subfiles[0], storage_options=storage_options).to_dask()
-    ds_chunk2 = intake_xarray.netcdf.NetCDFSource(subfiles[1], storage_options=storage_options).to_dask()
-    
-    def get_coords(ds):
-        data_var = [v for v in ds.data_vars][0]
-        coords = ds[data_var].dims
-        coord_slices = {}
-        for coord in coords:
-            coord_slices[coord] = ds[data_var].coords[coord].values[0:5]
-        return coord_slices
+# TODO: Figure out how to make virtual datasets work
+# class virtual_dataset:
 
-    def coord_type(coords_slice1, coords_slice2):
-        coord_types = {'concat':[], 'identical':[]}
-        for dim in coords_slice1:
-            if np.array_equal(coords_slice1[dim], coords_slice2[dim]):
-                coord_types['identical'].append(dim)
-            else:
-                coord_types['concat'].append(dim)
-        return coord_types
+#     def __init__(self, base_uri, file, storage_options, fs):
+#         self.base_uri = base_uri
+#         self.file = file
+#         self.storage_options = storage_options
+#         self.fs = fs
+#         self.benchmark_dir = os.path.expanduser('~') + '/cloud-data-transfer-benchmarking'
+#         self.local_reference = f"{self.benchmark_dir}/references/" + self.file.split('/')[-2] + ".json"
+#         self.remote_reference = f"{self.base_uri}/cloud-data-transfer-benchmarking/references/" + self.file.split('/')[-2] + ".json"
 
-    chunk1_coords = get_coords(ds_chunk1)
-    chunk2_coords = get_coords(ds_chunk2)
-    coord_types = coord_type(chunk1_coords, chunk2_coords)
+#     def generate(self):
+#         """Combines datasets that are made up of many NetCDF subfiles
+#         and writes them into a Kerchunk reference file.
+        
+#         This reference file will be stored in all benchmarking cloud
+#         storage locations so that chunked NetCDF files can be read 
+#         with a single call to `xarray.open_dataset(...)`.
+#         """
+
+#         # Gather files from globstring and the URI prefix to each
+#         file_paths = self.fs.glob(f'{self.base_uri}/{self.file}')
+#         uri_prefix = self.base_uri.split(':')[0]
+#         subfiles = sorted([f'{uri_prefix}://{file_path}' for file_path in file_paths])
 
 
-    # Create a temp directory to store reference .json files
-    temp_dir = '/mnt/shared'
+#         # Check to see which dimensions need to be concatenated
+#         ds_chunk1 = intake_xarray.netcdf.NetCDFSource(subfiles[0], storage_options=self.storage_options).to_dask()
+#         ds_chunk2 = intake_xarray.netcdf.NetCDFSource(subfiles[1], storage_options=self.storage_options).to_dask()
+        
 
-    # Function to create a Kerchunk index from a NetCDF subfile
-    def generate_json_ref(file, output_dir, fs):
-        with fs.open(file) as infile:
-            ncchunks = SingleHdf5ToZarr(infile, file)
-            fname = file.split('/')[-1].strip(".nc")
-            output = f"{output_dir}/{fname}.json"
-            with open(output, 'wb') as outfile:
-                outfile.write(ujson.dumps(ncchunks.translate()).encode())
-            return output
+#         def get_coords(ds):
+#             "Gets slices of coordinates in an Xarray dataset"
+#             data_var = [v for v in ds.data_vars][0]
+#             coords = ds[data_var].dims
+#             coord_slices = {}
+#             for coord in coords:
+#                 coord_slices[coord] = ds[data_var].coords[coord].values[0:5]
+#             return coord_slices
 
-    # Use Dask to write the .json reference files in parallel
-    tasks = [dask.delayed(generate_json_ref)(file, temp_dir, fs) for file in subfiles]
-    dask.compute(tasks)
-    dataset_files = glob.glob(f"{temp_dir}/*.json")
+#         def coord_type(coords_slice1, coords_slice2):
+#             """Determines which coordinates between two files
+#             in the same dataset have idential coordinates, and
+#             which ones will need to be concatenated when creating
+#             the virtual dataset.
+#             """
+#             coord_types = {'concat':[], 'identical':[]}
+#             for dim in coords_slice1:
+#                 if np.array_equal(coords_slice1[dim], coords_slice2[dim]):
+#                     coord_types['identical'].append(dim)
+#                 else:
+#                     coord_types['concat'].append(dim)
+#             return coord_types
 
-    mzz = MultiZarrToZarr(dataset_files, concat_dims=coord_types['concat'], identical_dims=coord_types['identical'])
-    multi_kerchunk = mzz.translate()
 
-    output_filename = "references" + file.strip('/*') + ".json"
-    with open(f"{output_filename}", "wb") as f:
-        f.write(ujson.dumps(multi_kerchunk).encode())
+#         # Get coordinate slices and determine the type of dimensions in
+#         # the dataset (see `coord_type` for more information)
+#         chunk1_coords = get_coords(ds_chunk1)
+#         chunk2_coords = get_coords(ds_chunk2)
+#         coord_types = coord_type(chunk1_coords, chunk2_coords)
 
-    fs = fsspec.filesystem("reference",
-                            remote_protocol = uri_prefix,
-                            remote_options=storage_options,
-                            skip_instance_cache=True)
-    mapper = fs.get_mapper("")
-    return xr.open_dataset(mapper, engine="zarr")
+
+#         # Create and update the copy of the storage options dictionary with
+#         # other keyword arguments and create a temp directory to 
+#         # store reference .json files
+#         so = copy.copy(self.storage_options)
+#         so.update(dict(mode='rb', default_fill_cache=False, default_cache_type="first"))
+#         td = TemporaryDirectory(dir="/mnt/shared")
+#         temp_dir = td.name
+
+
+#         # Function to create a Kerchunk index from a NetCDF subfile
+#         def generate_json_ref(file, output_dir, fs, storage_options):
+#             with fs.open(file, **storage_options) as infile:
+#                 ncchunks = SingleHdf5ToZarr(infile, file)
+#                 fname = file.split('/')[-1].rstrip(".nc")
+#                 output = f"{output_dir}/{fname}.json"
+#                 with open(output, 'wb') as outfile:
+#                     outfile.write(ujson.dumps(ncchunks.translate()).encode())
+#                 return output
+
+
+#         # Call `generate_json_ref` for all subfiles in the dataset and
+#         # use Dask to write the .json reference files in parallel.
+#         tasks = [dask.delayed(generate_json_ref)(subfile, temp_dir, self.fs, so) for subfile in subfiles]
+#         dask.compute(tasks)
+#         dataset_files = glob.glob(f"{temp_dir}/*.json")
+
+
+#         # Combine individual reference files into a single dataset reference file. This file will be used to read the
+#         # NetCDF datasets (divided into subfiles) from cloud storage.
+#         mzz = MultiZarrToZarr(dataset_files, concat_dims=coord_types['concat'], identical_dims=coord_types['identical'])
+
+#         # Write the virtual dataset to local storage
+#         os.mkdir(self.benchmark_dir + "/references")
+#         with open(f"{self.local_reference}", "wb") as f:
+#             f.write(ujson.dumps(mzz.translate()).encode())
+
+
+#         temp_dir.cleanup() # Remove temporary files
+#         print("Virtual dataset of" + file.split('/')[-2] + f'written to {output_filename}')
+
+
+#     def cloud_upload(self):
+#         if not os.path.isfile(self.local_reference):
+#             self.generate()
+
+#         self.fs.put_file(self.local_reference, self.remote_reference, **self.storage_options)
+#         print(f'Virtual dataset uploaded to {self.remote_reference}')
+
+
+#     def load(self):
+#         if not self.fs.exists(self.remote_reference):
+#             self.cloud_upload()
+
+#         uri_prefix = self.base_uri.split(':')[0]
+#         tmp_fs = fsspec.filesystem("reference",
+#                                     fo=self.remote_reference,
+#                                     remote_protocol=uri_prefix,
+#                                     **self.storage_options)
+#         print(tmp_fs.exits(self.remote_reference))
+
+#         mapper = tmp_fs.get_mapper("")
+#         return xr.open_dataset(mapper, engine='zarr', consolidated = False)
+
+
+
+
 
 
 
@@ -311,6 +379,9 @@ class DiagnosticTimer:
 
 
 
+
+
+
 class DevNullStore:
     """
     A class that creates a Python
@@ -321,6 +392,9 @@ class DevNullStore:
         pass
     def __setitem__(*args, **kwargs):
         pass
+
+
+
 
 
 

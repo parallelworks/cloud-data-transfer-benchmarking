@@ -56,21 +56,23 @@ do
             # Get info about the cloud service provider of the source and destination
             # locations. If the source is a local filesystem, CSP='Local'
             file_csp=$( jq -r ".USERFILES[${file_index}] | .CSP" ${input_file} )
-            file_credentials=$(jq -r ".USERFILES[${file_index}] | .Credentials" ${input_file} )
+            file_credentials=$( jq -r ".USERFILES[${file_index}] | .Credentials" ${input_file} )
             storage_csp=$( jq -r ".STORAGE[${store_index}] | .CSP" ${input_file} )
             store_credentials=$( jq -r ".STORAGE[${store_index}] | .Credentials" ${input_file} )
 
             # Populate variables that will be used to handle globstrings
             filepath_no_glob=$( echo ${filepath} | cut -d "*" -f1 )
-            glob=$( echo ${filepath} | cut -d "*" -f2 )
+            glob=$( echo ${filepath} | cut -d "*" -f2 ) # If no '*', $glob will be an empty string
 
             # If either location is in AWS, set profile name environment variable:
             if [ "${file_csp}" == "AWS" ]
             then
-                AWS_PROFILE=${file_credentials}
+                export AWS_ACCESS_KEY_ID=$( echo ${file_credentials} | jq  -r .key )
+                export AWS_SECRET_ACCESS_KEY=$( echo ${file_credentials} | jq  -r .secret )
             elif [ "${store_csp}" == "AWS" ]
             then
-                AWS_PROFILE=${store_credentials}
+                export AWS_ACCESS_KEY_ID=$( echo ${file_credentials} | jq  -r .key )
+                export AWS_SECRET_ACCESS_KEY=$( echo ${file_credentials} | jq  -r .secret )
             fi
 
             #  EXECUTE FILE TRANSFERS

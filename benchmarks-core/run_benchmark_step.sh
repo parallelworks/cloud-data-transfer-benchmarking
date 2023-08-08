@@ -21,6 +21,7 @@ results_file=$2
 ######################################################################
 f_benchmark() {
     # Set user container path to write results to
+    resource_index=$1
     results_path_local=$2
     python_script=$3
     benchmark_dir='cloud-data-transfer-benchmarking'
@@ -29,12 +30,14 @@ f_benchmark() {
     conda activate cloud-data
     cd ${benchmark_dir}/benchmarks-core
 
-    export resource_index=$1
+    export resource_index
     python -u ${python_script}
 
+    cd .. # Change directory back to `~/cloud-data-transfer-benchmarking`
+
     # Copy results back to user container and clean up
-    scp -q ${benchmark_dir}/outputs/results_tmp.csv usercontainer:${results_path_local}
-    rm results_tmp.csv
+    stepname=$( echo ${python_script} | cut -d "." -f1 )
+    scp -q outputs/results-${stepname}.csv usercontainer:${results_path_local}/results_tmp.csv
 }
 
                         # MAIN PROGRAM #

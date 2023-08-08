@@ -325,7 +325,7 @@ class resourceWidgets(commonWidgets):
     def widget_func(self):
         "Defines the widgets that will be used in this particular field of inputs"
         widget = wg.VBox((wg.HBox([wg.Label('Resource Name: '),
-                                 wg.Text(placeholder='my-cluster')
+                                 wg.Text()
                                 ]),
                         wg.HBox([wg.Label('Cloud Service Provider: '),
                                 wg.Dropdown(options=('GCP', 'AWS'))
@@ -334,7 +334,7 @@ class resourceWidgets(commonWidgets):
                                 wg.Dropdown(options=('SLURM',))
                             ]),
                         wg.HBox([wg.Label('Partition Name: '),
-                                wg.Text(placeholder='compute')
+                                wg.Text(value='compute')
                             ]),
                         wg.HBox([wg.Label('CPUs/node: '),
                                 wg.IntText()
@@ -454,7 +454,7 @@ class storageWidgets(commonWidgets):
                                 ]),
                         wg.VBox([wg.Label('Credentials: '),
                                 wg.Text(disabled = True),
-                                wg.Text(disabled = True),
+                                wg.Password(disabled = True),
                                 ])
                         ))
         return widget
@@ -543,22 +543,23 @@ class storageWidgets(commonWidgets):
             children = i.children
             path = children[0].children[1].value
             csp = children[2].children[1].value
+            bucket_type = children[1].children[1].value
 
             if path[-1] == '/':
                 path = path[:-1]
 
-            if csp == 'AWS':
+            if csp == 'AWS' and bucket_type == "Private":
                 credentials = {'anon' : False}
                 labels = ['key', 'secret', 'session']
                 for index, child in enumerate(children[3].children[1:]):
                     credentials[labels[index]] = child.value
-            elif csp == 'GCP':
+            elif csp == 'GCP' and bucket_type == "Private":
                 credentials = {'token':children[3].children[1].value}
             else:
                 credentials = {'anon' : True}
 
             storage.append({"Path" : path,
-                            "Type" : children[1].children[1].value,
+                            "Type" : bucket_type,
                             "CSP" : csp,
                             "Credentials" : credentials})
 
@@ -823,25 +824,11 @@ class userdataWidgets(commonWidgets):
                                                     'Zarr'))
                                     ]),
                         wg.HBox([wg.Label("Storage Location: "),
-                                wg.Dropdown(options=tuple(self.storage_names + ['Other Cloud Storage', 'Local Filesystem']))
+                                wg.Dropdown(options=tuple(self.storage_names + ['Local Filesystem']))
                                 ]),
-                        wg.HBox([wg.Label("Full URI/Path of Data: "),
+                        wg.HBox([wg.Label("URI/Path of Data: "),
                                 wg.Text()
-                                ]),
-                        wg.VBox([wg.Label('--------------------------------------------------------------------------------------------'),
-                                wg.Label('The following options are only valid for choice of \"Other Cloud Storage\"')
-                                ]),
-                        wg.HBox([wg.Label('Bucket Type: '),
-                                wg.Dropdown(options=('Public',
-                                                    'Private'), disabled=True)
-                                ]),
-                        wg.HBox([wg.Label('Cloud service provider: '),
-                                wg.Dropdown(options=('GCP', 'AWS'), disabled = True)
-                                ]),
-                        wg.VBox([wg.Label("Credentials: "),
-                                wg.Text(disabled=True),
-                                wg.Text(disabled=True)
-                                ]),
+                                ])
                         ))
         return widget
 
@@ -862,82 +849,25 @@ class userdataWidgets(commonWidgets):
                 children = i.children
                 storage_location = children[1].children[1].value
                 uriOrPath = children[2].children[1]
-                bucket_type = children[4].children[1]
-                csp = children[5].children[1]
-                credentials = children[6]
-                credentials_desc = children[6].children[1].value
 
                 # First, check the storage location. The placeholder for text
                 # boxes changes based on which storage location is selected.
-                # Additionally, if `Other Cloud Storage` is specified, activates
-                # fields for user to fill out information about the bucket type.
                 match storage_location:
                     case 'Local Filesystem':
                         uriOrPath.placeholder='/path/to/data'
-                        bucket_type.disabled = True
-                        csp.disabled = True
-                    case 'Other Cloud Storage':
-                        uriOrPath.placeholder = '<URI prefix>://my-bucket/path/to/data'
-                        uri_prefix = uriOrPath.value.split(':')[0]
-                        if uri_prefix == 'gs' or uri_prefix == 'gcs':
-                            csp.disabled = True
-                            csp.value = 'GCP'
-                        elif uri_prefix == 's3':
-                            csp.disabled = True
-                            csp.value = 'AWS'
-                        else:
-                            csp.disabled = False
-                        bucket_type.disabled = False
                     case other:
-                        uriOrPath.placeholder = storage_location + '/path/to/data'
-                        bucket_type.disabled = True
-                        csp.disabled = True
-
-                # If the bucket type of 'Other Cloud Storage' is set to `Private`,
-                # activates a field allowing user to input their access token
-                if not bucket_type.disabled:
-                    match bucket_type.value:
-                        case 'Private':
-                            match csp.value:
-                                case 'GCP':
-                                    credentials.children[1].disabled = False
-                                    credentials.children[2].disabled = True
-                                    credentials.children[1].placeholder = '/path/to/token/file.json'
-                                    credentials.children[2].placeholder = ''
-                                case 'AWS':
-                                    for cred in credentials.children[1:]:
-                                        cred.disabled = False
-                                        credentials.children[1].placeholder = 'AWS_ACCESS_KEY_ID'
-                                        credentials.children[2].placeholder = 'AWS_SECRET_ACCESS_KEY'
-                        case other:
-                            for cred in credentials.children[1:]:
-                                cred.disabled = True
-                                cred.value = ''
-                                cred.placeholder = ''
+                        uriOrPath.placeholder = 'path/in/bucket/to/data'
         # END INNER FUNCTION
 
         def submit_cmds():
             boxes = self.main.children
 
-            for n in boxes:
-                for i in n.children:
-                    if i.children[1].value == n.children[6].children[1].value and n.children[3].children[1].value != 'Private':
-                        pass
-
-                    elif i.children[1].value == n.children[6].children[1].value and n.children[3].children[1].value == 'Private':
-                        match n.children[5].children[1].value:
-                            case 'GCP':
-                                file = i.children[1].value
-                                profile = ''
-                                profile_check = ''
-
-                                if not os.path.isfile(file):
-                                    print('Credentials file not found. Ensure you have input the correct path.')
-                                    return False
-
-                    elif len(i.children[1].value) == 0:
-                        print('Ensure no fields are blank before submitting.')
-                        return False
+            if self.checkbox.value:
+                for n in boxes:
+                    for i in n.children:
+                        if len(i.children[1].value) == 0:
+                            print('Ensure no fields are blank before submitting.')
+                            return False
             
             return True
         # END INNER FUNCTION
@@ -967,6 +897,7 @@ class userdataWidgets(commonWidgets):
             for i in data:
                 children = i.children
                 storage_location = children[1].children[1].value
+                path = children[2].children[1].value
 
                 # First check to see if the storage location
                 # selected by the user matches those previously
@@ -978,6 +909,13 @@ class userdataWidgets(commonWidgets):
                         bucket_type = i['Type']
                         credentials = i['Credentials']
                         csp = i['CSP']
+
+                        # If the user put a `/` in front of the bucket
+                        # path to the data, remove it
+                        if path[0] == '/':
+                            path = path[1:]
+
+                        source_path = f"{storage_location}/{path}"
                         break
 
                 # If storage location is local or other cloud storage,
@@ -985,25 +923,13 @@ class userdataWidgets(commonWidgets):
                 # on user inputs
                 if storage_location == 'Local Filesystem':
                     bucket_type = 'Local'
+                    source_path = path
                     csp = 'Local'
-                    credentials = children[6].children[1].value
-                elif storage_location == 'Other Cloud Storage':
-                    bucket_type = children[4].children[1].value
-                    csp = children[5].children[1].value
-
-                    if csp == 'AWS':
-                        credentials = {'anon' : False}
-                        labels = ['key', 'secret', 'session']
-                        for index, child in enumerate(children[6].children[1:]):
-                                credentials[labels[index]] = child.value
-                    elif csp == "GCP":
-                        credentials = {'token': children[6].children[1].value}
-                    else:
-                        credentials = {'anon' : True}
+                    credentials = ''
 
                 # Populate dictionary with fields
                 user_data.append({"Format" : children[0].children[1].value,
-                                "SourcePath" : children[2].children[1].value,
+                                "SourcePath" : source_path,
                                 "Type" : bucket_type,
                                 "CSP" : csp,
                                 "Credentials" : credentials})

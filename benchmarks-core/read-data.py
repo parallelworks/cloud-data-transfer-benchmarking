@@ -22,7 +22,7 @@ def MainLoop(dask_array, max_workers, diag_kwargs, worker_step=2, tests=5):
     is a nested loop that takes a Dask array and scales a cluster to
     test the read throughput of different data formats. By supplying
     `worker_step`, you can also determine the granularity of
-    the benchmarking resutls.
+    the benchmarking results.
 
     Parameters
     ----------
@@ -151,7 +151,7 @@ for store in stores:
     fs = fsspec.filesystem(base_uri.split(':')[0], **storage_options)
 
     # Print message saying that conversion is beginning
-    print(f'Reading files in \"{base_uri}\" with \"{resource_name}\"...')
+    print(f'\n\nReading files in \"{base_uri}\" with \"{resource_name}\"...')
 
 
 
@@ -246,7 +246,8 @@ for store in stores:
 
         # If a globstring is specified, the files must be combined by a custom function
         if filename[-1] == '*':
-            ds = core.combine_nc_subfiles(base_uri, filename, storage_options, fs)
+            # virtual_dataset = core.virtual_dataset(base_uri, filename, storage_options, fs)
+            # ds = virtual_dataset.load()
             netcdf_format = 'NetCDF4_subfiles'
         # Otherwise, we can load the entire NetCDF file from cloud storage in a single command
         else:
@@ -277,7 +278,7 @@ for store in stores:
                             original_dataset_name=f'{dataset_name}-{data_var}',
                             nbytes=dask_array.nbytes,
                             chunksize=chunksize)
-            print(f'Reading the variable {data_var} from {filename}...')
+            print(f'\nReading the variable \"{data_var}\" from \"filename}\"...')
             MainLoop(dask_array, max_workers, diag_kwargs)
 
             # READ ZARR #
@@ -306,7 +307,7 @@ for store in stores:
                             original_dataset_name=f'{dataset_name}-{data_var}',
                             nbytes=dask_array.nbytes,
                             chunksize=chunksize)
-            print(f'Reading the variable {data_var} from {filename}...')
+            print(f'\nReading the variable \"{data_var}\" from \"{filename}\"...')
             MainLoop(dask_array, max_workers, diag_kwargs)
 #################################################################
 
@@ -319,7 +320,7 @@ print('Workers shut down. (this may take a while to register in the platform UI)
 
 # Load dataframe and save it to a CSV file
 df = diag_timer.dataframe()
-results_path = f'{benchmark_dir}/outputs/results_tmp.csv'
+results_path = f'{benchmark_dir}/outputs/results-read-data.csv'
 if resource_index == 0:
     df.to_csv(results_path, index=False)
 else:

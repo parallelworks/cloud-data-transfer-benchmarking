@@ -72,7 +72,7 @@ done
 
 # 5. RANDOM FILE GENERATION:
 generate_bools=$( jq -r '.RANDFILES[] | .Generate' ${input_file} )
-bash $( pwd )/setup-helpers/random-file-generator/rand_files_local.sh ${generate_bools}
+bash $( pwd )/setup-helpers/random-file-generator/run_rand_files.sh ${generate_bools}
 # Update input file in all clusters
 for resource in ${resource_names}
 do
@@ -84,4 +84,7 @@ done
 source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
 python -u $( pwd )/setup-helpers/create_file_list.py
-scp -q file_list.json ${resource}.clusters.pw:${remote_benchmark_dir}/inputs
+for resource in ${resource_names}
+do
+    scp -q file_list.json ${resource}.clusters.pw:${remote_benchmark_dir}/inputs
+done

@@ -124,16 +124,16 @@ f_install_env() {
 
         # Xarray
         conda install -y -c conda-forge xarray
-        conda install -y -c conda-forge netCDF4
         conda install -y -c conda-forge bottleneck
         conda install -y -c conda-forge intake-xarray
         conda install -y -c conda-forge fastparquet
+        conda install -y h5netcdf
 
         # Remote filesystems
-        conda install -y -c conda-forge fsspec
         conda install -y -c conda-forge gcsfs
         conda install -y -c conda-forge s3fs
-        conda install -y -c conda-forge kerchunk
+        conda install -y -c conda-forge fsspec
+        #conda install -y -c conda-forge kerchunk
         
         # Plotting
         conda install -y -c conda-forge matplotlib
@@ -142,9 +142,10 @@ f_install_env() {
         conda install -y -c anaconda ujson
 
         # Pip dependencies
+        #pip install netCDF4
         pip install pyarrow
         pip install scipy
-        pip install h5netcdf
+        pip install google-auth-oauthlib
 
         # Write out the ${my_env}_requirements.yml to document environment
         conda env export > ${env_filename}
@@ -173,6 +174,10 @@ do
     # If so, copies over to the current remote resource in the loop.
     if [ -e "${local_wd}/${conda_env}_requirements.yml" ]
     then
+        if [ $( tail -1 ${local_wd}/${conda_env}_requirements.yml | cut -d ' ' -f2 ) == "${miniconda_dir}/envs/${conda_env}" ]
+        then
+            echo " "
+        fi
         scp -q ${local_wd}/${conda_env}_requirements.yml ${resource}.clusters.pw:
     fi
 

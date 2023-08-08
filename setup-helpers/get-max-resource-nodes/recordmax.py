@@ -14,7 +14,7 @@ max_nodes = int(os.environ['max_nodes'])
 current_dask = user_input['RESOURCES'][index]['Dask']
 current_dask['MaxNodes'] = max_nodes
 
-# Update `benchmark_info.json` with new fields
+# Update `inputs.json` with new fields
 updated_json = json.dumps(user_input)
 with open('inputs.json', 'w') as outfile:
     outfile.write(updated_json)

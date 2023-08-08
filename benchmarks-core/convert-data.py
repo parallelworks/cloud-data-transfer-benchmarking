@@ -26,6 +26,7 @@ import pandas as pd
 import intake_xarray
 import xarray as xr
 import fsspec
+import copy
 
 
                         # GET INPUTS #
@@ -41,7 +42,7 @@ resource_index = int(os.environ['resource_index'])
 
 
 # Open benchmark information file
-with open(f'{input_dir}/inputs.json') as infile:
+with open(f'{input_dir}/inputs.json', 'r') as infile:
     inputs = ujson.loads(infile.read())
 
 
@@ -94,18 +95,18 @@ if __name__ == '__main__':
 diag_timer = core.DiagnosticTimer(time_desc='conversion_time') # Instantiate diagnostic timer
 cloud_native_path = 'cloud-data-transfer-benchmarking/cloudnativefiles/' # Path to write data to
 update_file_list = True # flag to update file list with newly written files
+file_list_path = copy.copy(cloud_native_path)
 
 # If files have already been written to the selected cloud storage
 # locations, put new writes in a different directory to be deleted
 if resource_index > 0:
     cloud_native_path= 'cloud-data-transfer-benchmarking/tmp/'
-    update_file_list = False
 
 # Scale cluster up to maximum
 cluster.scale(max_nodes)
 print('Waiting for worker nodes to start up...')
 client.wait_for_workers(max_nodes)
-print('Workers active.')
+print('Workers active.\n\n')
 
 # Begin conversion process
 for store in stores:
@@ -124,7 +125,7 @@ for store in stores:
     # set the filesystem used in the current bucket
     fs = fsspec.filesystem(base_uri.split(':')[0], **storage_options)
 
-    print(f'Converting files in \"{base_uri}\" with \"{resource_name}\"...')
+    print(f'Converting files in \"{base_uri}\" with \"{resource_name}\"...\n')
 
     # Convert files to Parquet format
     for file in file_list['CSV']:
@@ -142,6 +143,7 @@ for store in stores:
 
         # Set the upload path and load the CSV dataset
         upload_path = cloud_native_path + f'{dataset_name}_parquet'
+        list_upload_path = file_list_path + f'{dataset_name}_parquet' # Path to update file list with
         df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
         df = df.rename(columns=str)
 
@@ -161,7 +163,7 @@ for store in stores:
 
         # Update file list
         if update_file_list:
-            file_list['Parquet'].append(upload_path)
+            file_list['Parquet'].append(list_upload_path)
 
 
 
@@ -175,10 +177,13 @@ for store in stores:
         # Get the dataset name and set the upload path
         dataset_name = core.get_dataset_name(filename)
         upload_path = cloud_native_path + f'{dataset_name}_zarr'
+        list_upload_path = file_list_path + f'{dataset_name}_zarr' # Path to update file list with
 
         # If a globstring is specified, the files must be combined by a custom function
         if filename[-1] == '*':
-            ds = core.combine_nc_subfiles(base_uri, filename, storage_options, fs)
+            # virtual_dataset = core.virtual_dataset(base_uri, filename, storage_options, fs)
+            # ds = virtual_dataset.load()
+            pass
 
         # Otherwise, we can load the entire NetCDF file from cloud storage in a single command
         else:
@@ -207,7 +212,7 @@ for store in stores:
 
         # Update file list
         if update_file_list:
-            file_list['Zarr'].append(upload_path)
+            file_list['Zarr'].append(list_upload_path)
 
 
     print(f'Done converting files in \"{base_uri}\".')
@@ -227,9 +232,9 @@ cluster.scale(0)
 client.close()
 print('Workers shut down. (this may take a while to register in the platform UI)')
 
-# Load dataframe and save it to a CSV file
+# # Load dataframe and save it to a CSV file
 df = diag_timer.dataframe()
-results_path = f'{benchmark_dir}/outputs/results_tmp.csv'
+results_path = f'{benchmark_dir}/outputs/results-convert-data.csv'
 if resource_index == 0:
     df.to_csv(results_path, index=False)
 else:
@@ -239,4 +244,4 @@ else:
 # Write updated file list back to `file_list.json`
 updated_json = ujson.dumps(file_list)
 with open(f'{input_dir}/file_list.json', 'w') as outfile:
-    outfile.write(updated_ujson)
+    outfile.write(updated_json)

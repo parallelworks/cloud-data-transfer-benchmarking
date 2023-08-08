@@ -6,6 +6,7 @@ import numpy as np
 import itertools
 import fsspec
 import copy
+from h5netcdf.legacyapi import Dataset
 
 
 def compute_dim_length(filesize : float, nc_info : dict) -> int:
@@ -99,7 +100,7 @@ def define_dataset(nc_info : dict, dim_length : int):
     # Time axes
     for i in range(int(time_axes)):
         axs_names.append('t' + str(i+1))
-        axs_info.append(pd.date_range("2023-01-01", periods=dim_length))
+        axs_info.append(list(np.linspace(0, dim_length/2, dim_length)))
 
     # Store names and coordinates
     axs_names = tuple(axs_names)
@@ -123,31 +124,56 @@ def define_dataset(nc_info : dict, dim_length : int):
     return ds
 
 
+class ncfile_generator:
+    def __init__(self, nc_path):
+        self.nc_path = nc_path
 
-def split_by_chunks(dataset):
-    "Splits the defined dataset into sub-datasets"
+    def open_ncfile(self):
 
-    chunk_slices = {}
-    for dim, chunks in dataset.chunks.items():
-        slices = []
-        start = 0
-        for chunk in chunks:
-            if start >= dataset.sizes[dim]:
-                break
-            stop = start + chunk
-            slices.append(slice(start, stop))
-            start = stop
-        chunk_slices[dim] = slices
-    for slices in itertools.product(*chunk_slices.values()):
-        selection = dict(zip(chunk_slices.keys(), slices))
-        yield dataset[selection]
+        try: self.ncfile.close()
+        except: pass
+        self.ncfile = Dataset(self.nc_path, mode='w')
+
+    def close_ncfile(self):
+        self.ncfile.close()
 
 
-def create_filepath(root_path, counter):
-    "Create unique filenames for each chunk of a NetCDF4 file"
-    
-    filepath = f'{root_path}chunk{counter}.nc'
-    return filepath
+    def create_dimension(self, dimname='dim', length=None):
+        return self.ncfile.createDimension(dimname, length)
+
+
+    def create_datavar(self, varname='var', dtype=np.float64, dimensions=(), chunksizes=()):
+        return self.ncfile.createVariable(varname, dtype, dimensions, chunksizes=chunksizes)
+
+
+    def split_by_chunks(self, dataset, datavar, nc_var):
+        "Splits the defined dataset into sub-datasets"
+        dataarray = dataset[datavar]
+
+        chunk_slices = {}
+        for dim, chunks in dataarray.chunksizes.items():
+            slices = []
+            start = 0
+            for chunk in chunks:
+                if start >= dataarray.sizes[dim]:
+                    break
+                stop = start + chunk
+                slices.append(slice(start, stop))
+                start = stop
+            chunk_slices[dim] = slices
+
+        print(f'Writing data variable \"{datavar}\"...')
+        for slices in itertools.product(*chunk_slices.values()):
+            selection = dict(zip(chunk_slices.keys(), slices))
+
+            nc_var[slices] = dataarray[selection].values
+
+        print(f'Data variable \"{datavar}\" written to \"{self.nc_path}\"')
+            
+
+
+
+
 
 
 
@@ -184,34 +210,38 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
     dim_length = compute_dim_length(filesize, nc_info)
     ds = define_dataset(nc_info, dim_length)
 
-    # Split dataset into seperate datasets based on chunksize
-    datasets = list(split_by_chunks(ds))
-
     # Choose root directory. Since Xarray does not yet support
     # direct writes to remote cloud storage, if the storage is
     # not mounted it must be first created locally and copied
     # to cloud storage.
-    filename = 'random_' + str(filesize) + 'GB_NetCDF4/'
+    filename = 'random_' + str(filesize) + 'GB_NetCDF4.nc'
     local_root = './' + filename
+    os.system(f'touch {local_root}')
 
 
-    # Make an empty directory
-    os.system(f'mkdir -p {local_root}')
+    # Create dimensions, define coordinate axes, and write dimension data
+    nc_gen = ncfile_generator(local_root)
+    nc_gen.open_ncfile()
+    dims = []
+    dim_vars = []
+    for dim, length in ds.dims.items():
+        dims.append(nc_gen.create_dimension(dimname=dim, length=length))
+        
+        dim_vars.append(nc_gen.create_datavar(varname=dim, dimensions=(dim,), chunksizes=(int(max(ds.chunks[dim])),)))
+        dim_vars[-1][:] = ds.coords[dim].values
 
-    # Assign filenames to each NetCDF4 subfile
-    paths = []
-    for i in range(len(datasets)):
-        if len(str(i)) == 1:
-            counter = f'0{i}'
-        else:
-            counter = str(i)
+    # Create data vars
+    xr_data_vars = [var for var in ds.data_vars]
+    data_vars = []
+    for var in xr_data_vars:
+        chunksizes = tuple([max(value) for key, value in ds[var].chunksizes.items()])
+        dim_names = tuple([dim for dim in ds[var].dims])
+        data_vars.append(nc_gen.create_datavar(varname=var, dimensions=dim_names, chunksizes=chunksizes))
 
-        paths.append(create_filepath(local_root, counter))
-        # Make empty files with the created filepaths
-        os.system(f'touch {paths[i]}')
+        # Write data variable data
+        nc_gen.split_by_chunks(ds, var, data_vars[-1])
 
-    # Create local copy of dataset in parallel
-    xr.save_mfdataset(datasets=datasets, paths=paths)
+    nc_gen.close_ncfile() # Close and save all data
 
 
     # Loop through all storage locations and copy to cloud storage
@@ -237,14 +267,13 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
         # Copy local files to cloud storage if the bucket is not mounted
         if bucket_type != 'PW Mounted':
             fs = fsspec.filesystem(current_uri.split(':')[0], **storage_options)
-            fs.put(local_root, remote_root, recursive=True) # This needs to eventually be a multi-threaded copy
+            print(f'Uploading \"{local_root}\" to \"{remote_root}\"...')
+            fs.put_file(local_root, remote_root) # This needs to eventually be a multi-threaded copy
 
 
         #Confirm successful write
-        print(f'Files written to \"{remote_root}\"')
+        print(f'File written to \"{remote_root}\"')
     
-    # Remove local files
-    os.system(f'rm -r {local_root}')
 
     # Return the name of the randomly generated file
-    return f'{filename}*'
+    return filename
