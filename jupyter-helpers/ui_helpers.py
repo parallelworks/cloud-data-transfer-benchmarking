@@ -39,6 +39,10 @@
         input their own data sets. Data may be stored in cloud storage already,
         or could be on the local filesystem.
 
+    convertOptions(commonWidgets)
+        Used to define options for applying different compression algorithms and chunksizes to
+        datasets
+
 
    Boxes refers to the groups that widgets are placed
    in. In these helper classes, a box is referred to
@@ -817,17 +821,20 @@ class userdataWidgets(commonWidgets):
     def widget_func(self):
         "Defines the widgets that will be used in this particular field of inputs"
         widget = wg.VBox((wg.HBox([wg.Label("Data Format"),
-                                wg.Dropdown(options=('CSV',
-                                                    'NetCDF4',
+                                wg.Dropdown(options=('NetCDF4',
+                                                    'CSV',
                                                     #'Binary',
-                                                    'Parquet',
-                                                    'Zarr'))
+                                                    'Zarr',
+                                                    'Parquet'))
                                     ]),
                         wg.HBox([wg.Label("Storage Location: "),
                                 wg.Dropdown(options=tuple(self.storage_names + ['Local Filesystem']))
                                 ]),
                         wg.HBox([wg.Label("URI/Path of Data: "),
                                 wg.Text()
+                                ]),
+                        wg.VBox([wg.Label('Data Variables (Type * to run benchmarking with all data variables in the dataset or separate names with a comma to use multiple): '),
+                                wg.Text(value = '*')
                                 ])
                         ))
         return widget
@@ -849,6 +856,8 @@ class userdataWidgets(commonWidgets):
                 children = i.children
                 storage_location = children[1].children[1].value
                 uriOrPath = children[2].children[1]
+                data_format = children[0].children[1].value
+                data_variable = children[3].children[1]
 
                 # First, check the storage location. The placeholder for text
                 # boxes changes based on which storage location is selected.
@@ -857,6 +866,13 @@ class userdataWidgets(commonWidgets):
                         uriOrPath.placeholder='/path/to/data'
                     case other:
                         uriOrPath.placeholder = 'path/in/bucket/to/data'
+
+                if data_format == 'NetCDF4' or data_format == "Zarr":
+                    data_variable.disabled = False
+                else:
+                    data_variable.disabled = True
+                    data_variable.value = ''
+
         # END INNER FUNCTION
 
         def submit_cmds():
@@ -866,8 +882,11 @@ class userdataWidgets(commonWidgets):
                 for n in boxes:
                     for i in n.children:
                         if len(i.children[1].value) == 0:
-                            print('Ensure no fields are blank before submitting.')
-                            return False
+                            if n.children[0].children[1] == 'CSV' or n.children[0].children[1] == 'Parquet':
+                                pass
+                            else:
+                                print('Ensure no fields are blank before submitting.')
+                                return False
             
             return True
         # END INNER FUNCTION
@@ -898,6 +917,7 @@ class userdataWidgets(commonWidgets):
                 children = i.children
                 storage_location = children[1].children[1].value
                 path = children[2].children[1].value
+                data_vars = children[3].children[1].value
 
                 # First check to see if the storage location
                 # selected by the user matches those previously
@@ -927,9 +947,11 @@ class userdataWidgets(commonWidgets):
                     csp = 'Local'
                     credentials = ''
 
+
                 # Populate dictionary with fields
                 user_data.append({"Format" : children[0].children[1].value,
                                 "SourcePath" : source_path,
+                                "DataVars" : data_vars.split(','),
                                 "Type" : bucket_type,
                                 "CSP" : csp,
                                 "Credentials" : credentials})
@@ -937,3 +959,161 @@ class userdataWidgets(commonWidgets):
         print('\n---------------------------------------------------------------------------')
         print('If you wish to change information about your input data, run this cell again.\n')
         return user_data
+
+
+
+
+class convertOptions(commonWidgets):
+
+
+    def __init__(self, userfiles, randfiles):
+
+        self.gridded_datasets = []
+        self.tabular_datasets = []
+
+        for file in randfiles[:-1]:
+            if file['Generate']:
+                size = file['SizeGB']
+                fformat = file['Format']
+                if fformat == 'CSV':
+                    self.tabular_datasets.append(f'random_{float(size)}GB_CSV/*')
+                elif fformat == 'NetCDF4':
+                    self.gridded_datasets.append(f'random_{float(size)}GB_NetCDF4.nc')
+
+        for file in userfiles:
+            fformat = file['Format']
+
+            sourcepath = file['SourcePath']
+            split_path = [ele for ele in sourcepath.split('/') if len(ele)!=0]
+            path = split_path[-1]
+            if path == '*':
+                path = f'{split_path[-2]}/{path}'
+
+            if fformat == 'CSV':
+                if not path in self.tabular_datasets:
+                    self.tabular_datasets.append(path)
+            elif fformat == 'NetCDF4':
+                if not path in self.gridded_datasets:
+                    self.gridded_datasets.append(path)
+
+
+        main_box = self.widget_func()
+        self.main = wg.Accordion(children=[main_box], titles = ("Cloud Native Data Option Set 1",), disabled = True)
+
+
+
+    def widget_func(self):
+        "Defines the widgets that will be used in this particular field of inputs"
+        widget = wg.VBox((wg.HBox([wg.Label('Data Format Type: '),
+                                wg.Dropdown(options=('Gridded', 'Tabular'))
+                                ]),
+            
+                        wg.HBox([wg.Label("Compression Algorithm: "),
+                                wg.SelectMultiple(options=('lz4',
+                                                    'lz4hc',
+                                                    'blosclz',
+                                                    'zlib',
+                                                    'zstd',
+                                                    'gzip',
+                                                    'bzip2'), value=('lz4',))
+                                    ]),
+                        wg.HBox([wg.Label("Compression Level: "),
+                                wg.BoundedIntText(value=5,
+                                                min=0,
+                                                max=9,
+                                                step=1, disabled=False)
+                                ]),
+                        wg.HBox([wg.Label("Chunksize (MB): "),
+                                wg.FloatText(value='120')
+                                ]),
+                        wg.HBox([wg.Label("Datasets: "),
+                                wg.SelectMultiple(options=self.gridded_datasets)
+                                ])
+                        ))
+        return widget
+
+
+
+    def display(self):
+        "Identical code to the `.display()` method in `resourceWidgets`"
+        box_list = [self.main]
+
+
+        # Observer commands are more complicated than other classes. See following
+        # comments for more information
+        def observer_cmds():
+            data = self.main.children
+
+            for i in data:
+                
+                children = i.children
+                format_type = children[0].children[1].value
+                compression_algorithm = children[1].children[1]
+                compression_level = children[2].children[1]
+                datasets = children[4].children[1]
+
+                if format_type == 'Tabular':
+                    compression_algorithm.options=('snappy',
+                                                    'lz4',
+                                                    'gzip',
+                                                    'zstd')
+                    compression_level.value = 5
+                    compression_level.disabled = True
+                    datasets.options = self.tabular_datasets
+                elif format_type == 'Gridded':
+                    compression_algorithm.options=('lz4',
+                                                    'lz4hc',
+                                                    'blosclz',
+                                                    'zlib',
+                                                    'zstd',
+                                                    'gzip',
+                                                    'bzip2')
+                    compression_level.disabled = False
+                    datasets.options = self.gridded_datasets
+        # END INNER FUNCTION
+
+        def submit_cmds():
+            boxes = self.main.children
+
+            for n in boxes:
+                for i in n.children:
+                    if len(str(i.children[1].value)) == 0:
+                        print('Ensure no fields are blank before submitting.')
+                        return False
+            
+            return True
+        # END INNER FUNCTION
+
+        btn_box = self.AppendBoxes(box_title='Cloud-Native Data Option Set')
+        box_list.append(btn_box)
+        display(self.main)
+        submit_btn = self.submit_button(observer_cmds = observer_cmds, submit_cmds = submit_cmds)
+        box_list.append(submit_btn)
+        [v.close() for v in box_list]
+
+
+
+    def processInput(self):
+        "New inputs can be defined and added on as the workflow develops"
+        convert_options = []
+        data = self.main.children
+
+        for i in data:
+            children = i.children
+
+            data_format_type = children[0].children[1].value
+            if data_format_type == 'Tabular':
+                level = 10
+            elif data_format_type == 'Gridded':
+                level = children[2].children[1].value
+            
+
+            # Populate dictionary with fields
+            convert_options.append({"Algorithms" : children[1].children[1].value,
+                            "Level" : level,
+                            "Chunksize" : children[3].children[1].value,
+                            "Datasets" : children[4].children[1].value})
+
+        print('\n---------------------------------------------------------------------------')
+        print('If you wish to change information about your conversion options, run this cell again.\n')
+        return convert_options

@@ -27,6 +27,7 @@ import intake_xarray
 import xarray as xr
 import fsspec
 import copy
+import preprocessing_helpers as preproc
 
 
                         # GET INPUTS #
@@ -46,14 +47,13 @@ with open(f'{input_dir}/inputs.json', 'r') as infile:
     inputs = ujson.loads(infile.read())
 
 
-# Open list of files to use in benchmarking
-with open(f'{input_dir}/file_list.json', 'r') as infile:
-    file_list = ujson.loads(infile.read())
-
-
 # Populate variables from input file
 stores = inputs['STORAGE']
+file_list = inputs['FILELIST']
+convert_options = inputs['CONVERTOPTS']
 resource = inputs['RESOURCES'][resource_index]
+
+# Resource-specific information
 resource_name = resource['Name']
 resource_csp = resource['CSP']
 dask_options = resource['Dask']
@@ -91,22 +91,32 @@ if __name__ == '__main__':
 #################################################################
 # TODO: Add different compression engine and chunksize support
 
-
+# Instantiate helper classes
 diag_timer = core.DiagnosticTimer(time_desc='conversion_time') # Instantiate diagnostic timer
+
+# Set path that cloud native files will be written to and update file list flag 
 cloud_native_path = 'cloud-data-transfer-benchmarking/cloudnativefiles/' # Path to write data to
+list_cloud_native_path = copy.copy(cloud_native_path)
 update_file_list = True # flag to update file list with newly written files
-file_list_path = copy.copy(cloud_native_path)
+
 
 # If files have already been written to the selected cloud storage
 # locations, put new writes in a different directory to be deleted
 if resource_index > 0:
     cloud_native_path= 'cloud-data-transfer-benchmarking/tmp/'
 
+
+
+
 # Scale cluster up to maximum
 cluster.scale(max_nodes)
 print('Waiting for worker nodes to start up...')
 client.wait_for_workers(max_nodes)
 print('Workers active.\n\n')
+
+
+
+
 
 # Begin conversion process
 for store in stores:
@@ -127,6 +137,9 @@ for store in stores:
 
     print(f'Converting files in \"{base_uri}\" with \"{resource_name}\"...\n')
 
+
+
+
     # Convert files to Parquet format
     for file in file_list['CSV']:
 
@@ -141,43 +154,63 @@ for store in stores:
         dataset_name = core.get_dataset_name(filename)
 
 
-        # Set the upload path and load the CSV dataset
-        upload_path = cloud_native_path + f'{dataset_name}_parquet'
-        list_upload_path = file_list_path + f'{dataset_name}_parquet' # Path to update file list with
-        df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
-        df = df.rename(columns=str)
+
+        for option_set in convert_options:
+            if dataset_name in option_set['Datasets']:
 
 
-        # Convert the CSV file to parquet and time the execution
-        print(f'Converting {dataset_name} to Parquet...')
-        diag_kwargs = dict(resource=resource_name,
-                           resource_csp=resource_csp,
-                           bucket=base_uri,
-                           bucket_csp=csp,
-                           conversionType='CSV-to-Parquet',
-                           original_dataset_name=dataset_name)
-        with diag_timer.time(**diag_kwargs):
-            df.to_parquet(f'{base_uri}/{upload_path}', name_function=name_function, storage_options=storage_options)
-        print(f'Written to \"{base_uri}/{upload_path}\"')
+
+                # Load CSV dataset
+                df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
+                df = df.rename(columns=str)
+
+                # Rechunk
+                chunksize=option_set['Chunksize']
+                df = df.repartition(partition_size=f'{chunksize}MB')
+
+                for algorithm in option_set['Algorithms']:
+                    # Set paths for upload and recording into the file list
+                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}.parquet'
+                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}.parquet' # Path to update file list
+
+                    # Convert the CSV file to parquet and time the execution
+                    print(f'Converting {dataset_name} with {chunksize}MB chunks & {algorithm} compression to Parquet...')
+                    diag_kwargs = dict(resource=resource_name,
+                                    resource_csp=resource_csp,
+                                    bucket=base_uri,
+                                    bucket_csp=csp,
+                                    conversionType='CSV-to-Parquet',
+                                    orig_dataset_name=dataset_name,
+                                    data_vars='N/A',
+                                    compr_alg=algorithm,
+                                    compr_lvl=5,
+                                    chunksize_MB=chunksize)
+
+                    with diag_timer.time(**diag_kwargs):
+                        df.to_parquet(f'{base_uri}/{upload_path}', name_function=name_function, storage_options=storage_options, compression=algorithm)
+
+                    print(f'Written to \"{base_uri}/{upload_path}\"')
 
 
-        # Update file list
-        if update_file_list:
-            file_list['Parquet'].append(list_upload_path)
+                    # Update file list
+                    if update_file_list:
+                        file_list['Parquet'].append(list_upload_path)
+
+
 
 
 
     # Convert  files to Zarr format
     for file in file_list['NetCDF4']:
+        filenames = file['Path']
+        data_vars = file['DataVars']
 
         # First, check for userfiles and set the correct path
         # for the current storage location
-        filename = core.check_for_userpath(file, base_uri)
+        filename = core.check_for_userpath(filenames, base_uri)
 
-        # Get the dataset name and set the upload path
+        # Get the dataset name
         dataset_name = core.get_dataset_name(filename)
-        upload_path = cloud_native_path + f'{dataset_name}_zarr'
-        list_upload_path = file_list_path + f'{dataset_name}_zarr' # Path to update file list with
 
         # If a globstring is specified, the files must be combined by a custom function
         if filename[-1] == '*':
@@ -192,27 +225,58 @@ for store in stores:
             # The chunksizes of the resulting Dask array must match the internal chunks of the NetCDF file for 
             # an efficient conversion. This auomatically sets the chunking scheme based on that of the first data
             # variable in the NetCDF file.
-            data_vars = [v for v in ds.data_vars]
-            dims = ds[data_vars[0]].dims
-            chunks = ds[data_vars[0]].encoding['chunksizes']
-            ds = ds.chunk(chunks=dict(zip(dims, chunks)))
-        
-        # Convert the NetCDF4 file to Zarr and record the results
-        print(f'Converting {dataset_name} to Zarr...')
-        diag_kwargs = dict(resource=resource_name,
-                           resource_csp=resource_csp,
-                           bucket=base_uri,
-                           bucket_csp=csp,
-                           conversionType='NetCDF-to-Zarr',
-                           original_dataset_name=dataset_name)
-        with diag_timer.time(**diag_kwargs):
-            ds.to_zarr(store=f'{base_uri}/{upload_path}', storage_options=storage_options, 
-                    consolidated=True)
-        print(f'Written to \"{base_uri}/{upload_path}\"')
 
-        # Update file list
-        if update_file_list:
-            file_list['Zarr'].append(list_upload_path)
+
+        # Apply chunksize and compression schemes
+        for option_set in convert_options:
+            if dataset_name in option_set['Datasets']:
+
+                # Assume data variable input is '*'
+                dvars = [v for v in ds.data_vars]
+                file_list_dvars = ['*']
+
+                # If it is not '*', change the data var list
+                if data_vars[0] != '*':
+                    dvars = data_vars
+                    file_list_dvars = copy.copy(dvars)
+                
+                chunksize = option_set['Chunksize']
+                ds = preproc.dataset_rechunk(ds, dvars, chunksize) # Rechunk data
+
+                # Loop through compression algorithms in current option set and write
+                lvl = option_set['Level'] # Compression level for all algorithms in option set
+                for alg in option_set['Algorithms']:
+
+
+                    so = copy.copy(storage_options) # Copy storage options so we don't change the original dictionary
+                    so['compressor'] = preproc.zarr_compression(algorithm=alg, level=lvl) # Get compressor
+
+                    # Set upload paths with compressor and chunksize information built into the name
+                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}_{lvl}.zarr'
+                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}_{lvl}.zarr'
+
+                    # Convert the NetCDF4 file to Zarr and record the results
+                    data_var_string = ', '.join(dvars)
+                    print(f'Converting data variables {data_var_string} from {dataset_name} with {chunksize}MB chunks & level {lvl} {alg} compression to Zarr...')
+                    diag_kwargs = dict(resource=resource_name,
+                                    resource_csp=resource_csp,
+                                    bucket=base_uri,
+                                    bucket_csp=csp,
+                                    conversionType='NetCDF-to-Zarr',
+                                    orig_dataset_name=dataset_name,
+                                    data_vars=', '.join(file_list_dvars),
+                                    compr_alg=alg,
+                                    compr_lvl=lvl,
+                                    chunksize_MB=chunksize)
+
+                    with diag_timer.time(**diag_kwargs):
+                        ds.to_zarr(store=f'{base_uri}/{upload_path}', storage_options=so, consolidated=True)
+
+                    print(f'Written to \"{base_uri}/{upload_path}\"')
+
+                    # Update file list
+                    if update_file_list:
+                        file_list['Zarr'].append({'DataVars': file_list_dvars, 'Path': list_upload_path})
 
 
     print(f'Done converting files in \"{base_uri}\".')
@@ -242,6 +306,6 @@ else:
 
 
 # Write updated file list back to `file_list.json`
-updated_json = ujson.dumps(file_list)
-with open(f'{input_dir}/file_list.json', 'w') as outfile:
+updated_json = ujson.dumps(inputs)
+with open(f'{input_dir}/inputs.json', 'w') as outfile:
     outfile.write(updated_json)

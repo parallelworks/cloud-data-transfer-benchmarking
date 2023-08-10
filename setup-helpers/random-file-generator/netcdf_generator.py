@@ -35,8 +35,8 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
 
     # Define constants used for finding dimension lengths
     GB2Byte = 1000000000 # Conversion factor from GB to B
-    value_bytes = 8 # four bytes for each float value in the data variable
-    coord_bytes = 8 # four bytes for each integer coordinate value
+    value_bytes = 8 # eight bytes for each float value in the data variable
+    coord_bytes = 8 # eight bytes for each integer coordinate value
     time_bytes = 8 # eight bytes for each time value
     overhead = 0 # Will have to compute seperately
     n_dims = float_axes + time_axes # Total number of desired dimensions
@@ -195,15 +195,6 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
         that randomly-generated files are to be written to.
     nc_info : dict
         Contains information about the desired number of data variables and axes to use
-
-    Returns
-    -------
-    full_path : str        
-        Full path of randomly generated file written into a provided cloud
-        storage location. This information is passed back to the main workflow
-        for later use, and will represent either a full URI of the object location
-        or POSIX filesystem path corresponding to the locaton of the object if the
-        storage is mounted
     """
 
     # Get dimension length and define dataset
@@ -273,7 +264,3 @@ def write(filesize : float, storage_info : dict, nc_info : dict) -> str:
 
         #Confirm successful write
         print(f'File written to \"{remote_root}\"')
-    
-
-    # Return the name of the randomly generated file
-    return filename

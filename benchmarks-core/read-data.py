@@ -84,13 +84,17 @@ resource_index = int(os.environ['resource_index'])
 with open(f'{input_dir}/inputs.json') as infile:
     inputs = ujson.loads(infile.read())
 
-# Open list of files to use in benchmarking
-with open(f'{input_dir}/file_list.json', 'r') as infile:
-    file_list = ujson.loads(infile.read())
-
 # Populate variables from input file
 stores = inputs['STORAGE']
+file_list = inputs['FILELIST']
 resource = inputs['RESOURCES'][resource_index]
+global_options = inputs['GLOBALOPTS']
+
+# Test-specific information
+worker_step = global_options['worker_step']
+tests = global_options['tests']
+
+# Resource-specific options
 resource_name = resource['Name']
 resource_csp = resource['CSP']
 dask_options = resource['Dask']
@@ -188,10 +192,11 @@ for store in stores:
                            bucket_csp=csp,
                            fileFormat=csv_format,
                            original_dataset_name=dataset_name,
+                           data_variable='N/A',
                            nbytes=dask_array.nbytes,
                            chunksize=chunksize)
         print(f'Reading {filename}...')
-        MainLoop(dask_array, max_workers, diag_kwargs)
+        MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
 
 
 
@@ -223,20 +228,22 @@ for store in stores:
                     bucket_csp=csp,
                     fileFormat='Parquet',
                     original_dataset_name=dataset_name,
+                    data_variable='N/A',
                     nbytes=dask_array.nbytes,
                     chunksize=chunksize)
         print(f'Reading {filename}...')
-        MainLoop(dask_array, max_workers, diag_kwargs)
+        MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
 
 
             # READ NETCDF4 #
     #################################
     for file in file_list['NetCDF4']:
-
+        filenames = file['Path']
+        data_vars = file['DataVars']
 
         # First, check for userfiles and set the correct path
         # for the current storage location
-        filename = core.check_for_userpath(file, base_uri)
+        filename = core.check_for_userpath(filenames, base_uri)
 
 
         # Get the dataset name and set the upload path
@@ -256,15 +263,16 @@ for store in stores:
 
         
 
-        data_vars = [v for v in ds.data_vars]
-        for data_var in data_vars:
+        dvars = [v for v in ds.data_vars]
+        if data_vars[0] != '*':
+            dvars = data_vars
 
-            # If dataset is a single file, change dask chunks to match internal
-            # chunks. In both sc
+        for dvar in dvars:
+
             if filename[-1] != '*':
-                coords = ds[data_var].dims
-                chunks = ds[data_var].encoding['chunksizes']
-                dask_array = ds[data_var].chunk(chunks=dict(zip(coords, chunks))).data
+                coords = ds[dvar].dims
+                chunks = ds[dvar].encoding['chunksizes']
+                dask_array = ds[dvar].chunk(chunks=dict(zip(coords, chunks))).data
             else:
                 dask_array = ds[data_var].data
 
@@ -275,28 +283,33 @@ for store in stores:
                             bucket=base_uri,
                             bucket_csp=csp,
                             fileFormat=netcdf_format,
-                            original_dataset_name=f'{dataset_name}-{data_var}',
+                            original_dataset_name=f'{dataset_name}',
+                            data_variable=dvar,
                             nbytes=dask_array.nbytes,
                             chunksize=chunksize)
-            print(f'\nReading the variable \"{data_var}\" from \"filename}\"...')
-            MainLoop(dask_array, max_workers, diag_kwargs)
+            print(f'\nReading the variable \"{dvar}\" from \"{filename}\"...')
+            MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
 
             # READ ZARR #
     ##############################
     for file in file_list['Zarr']:
+        filenames = file['Path']
+        data_vars = file['DataVars']
 
-
-        filename = core.check_for_userpath(file, base_uri)
+        filename = core.check_for_userpath(filenames, base_uri)
         dataset_name = core.get_dataset_name(filename)
 
 
         ds = xr.open_zarr(f'{base_uri}/{filename}', consolidated=True, storage_options=storage_options)
 
 
-        data_vars = [v for v in ds.data_vars]
-        for data_var in data_vars:
+        dvars = [v for v in ds.data_vars]
+        if data_vars[0] != '*':
+            dvars = data_vars
 
-            dask_array = ds[data_var].data
+        for dvar in dvars:
+
+            dask_array = ds[dvar].data
             chunksize = np.prod(dask_array.chunksize) * dask_array.dtype.itemsize
 
             diag_kwargs = dict(resource=resource_name,
@@ -304,11 +317,12 @@ for store in stores:
                             bucket=base_uri,
                             bucket_csp=csp,
                             fileFormat='Zarr',
-                            original_dataset_name=f'{dataset_name}-{data_var}',
+                            original_dataset_name=f'{dataset_name}',
+                            data_variable=dvar,
                             nbytes=dask_array.nbytes,
                             chunksize=chunksize)
-            print(f'\nReading the variable \"{data_var}\" from \"{filename}\"...')
-            MainLoop(dask_array, max_workers, diag_kwargs)
+            print(f'\nReading the variable \"{dvar}\" from \"{filename}\"...')
+            MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
 #################################################################
 
 # Close Dask client and shut down worker nodes

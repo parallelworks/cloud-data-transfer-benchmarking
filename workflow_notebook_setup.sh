@@ -32,7 +32,13 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 #bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
-# 4. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
+# 4. MAKE .json OF FILES TO BE BENCHMARKED
+source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
+conda activate base
+python -u $( pwd )/setup-helpers/create_file_list.py
+
+
+# 5. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
 for resource in ${resource_names}
 do
     # Copy `benchmarks-core`, `random-file-generator`, and `inputs.json` to current iteration's cluster
@@ -70,21 +76,6 @@ do
     done
 done
 
-# 5. RANDOM FILE GENERATION:
+# 6. RANDOM FILE GENERATION:
 generate_bools=$( jq -r '.RANDFILES[] | .Generate' ${input_file} )
 bash $( pwd )/setup-helpers/random-file-generator/run_rand_files.sh ${generate_bools}
-# Update input file in all clusters
-for resource in ${resource_names}
-do
-    scp -q ${input_file} ${resource}.clusters.pw:${remote_benchmark_dir}/inputs/${input_file}
-done
-
-
-# 6. MAKE .json OF FILES TO BE BENCHMARKED
-source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
-conda activate base
-python -u $( pwd )/setup-helpers/create_file_list.py
-for resource in ${resource_names}
-do
-    scp -q file_list.json ${resource}.clusters.pw:${remote_benchmark_dir}/inputs
-done

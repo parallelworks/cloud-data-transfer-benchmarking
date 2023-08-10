@@ -21,6 +21,10 @@ def get_filenames(userfiles, randfiles, supported_formats):
         # USER-DEFINED FILES SECTION
         # Get the base dataset names of all Source Paths provided in the userfiles section of the benchmark info
         current_userfiles = [file['SourcePath'] for file in userfiles if file['Format'] == file_format] # Files that match the current format
+        
+        if file_format == 'NetCDF4' or file_format == 'Zarr':
+            current_datavars = [file['DataVars'] for file in userfiles if file['Format'] == file_format]
+
         split_paths = [path.split('/') for path in current_userfiles] # Split the URI path of each userfile
         tmp_names = [name[-1] for name in split_paths] # Store temporary names of the datasets. Could be a filename or "*""
 
@@ -41,8 +45,13 @@ def get_filenames(userfiles, randfiles, supported_formats):
         # After this, append the list of all possile storage locations of that dataset to a list of
         # the current file format
         for key, value in user_datasets.items():
-            tmp_list = [current_userfiles[index] for index in value]
-            tmp_list.append(f'cloud-data-transfer-benchmarking/userfiles/{key}')
+            if file_format == 'NetCDF4' or file_format == 'Zarr':
+                tmp_list = {'DataVars' : current_datavars[value[0]], 'Path' : [current_userfiles[index] for index in value]}
+                tmp_list['Path'].append(f'cloud-data-transfer-benchmarking/userfiles/{key}')
+            else:
+                tmp_list = [current_userfiles[index] for index in value]
+                tmp_list.append(f'cloud-data-transfer-benchmarking/userfiles/{key}')
+
             file_list.append(tmp_list)
 
 
@@ -51,8 +60,15 @@ def get_filenames(userfiles, randfiles, supported_formats):
         # Since randfiles were created with the correct path, simply check if it was generated
         for randfile in randfiles:
             if randfile['Generate'] == True and randfile['Format'] == file_format:
-                filename = randfile['Filename']
-                file_list.append(f'cloud-data-transfer-benchmarking/randfiles/{filename}')
+                size = randfile['SizeGB']
+                filename = f'random_{float(size)}GB_{file_format}'
+
+                if file_format == 'NetCDF4':
+                    append_term = {'DataVars' : ['*'], 'Path' : f'cloud-data-transfer-benchmarking/randfiles/{filename}.nc'}
+                else:
+                    append_term = f'cloud-data-transfer-benchmarking/randfiles/{filename}/*'
+
+                file_list.append(append_term)
 
         yield file_list
     
@@ -68,16 +84,16 @@ randfiles = user_input['RANDFILES'][:-1]
 
 # Set list of supported formats. If more formats are added to the
 # benchmarking, the new formats will need to be added to this list
-supported_formats = ['CSV', 'NetCDF4', 'Binary', 'Parquet', 'Zarr']
+supported_formats = ['CSV', 'NetCDF4', 'Parquet', 'Zarr']
 
 # Call generator function to get the overall file list. Form this
 # into a dictionary that contains info about all files to be used
 # in the benchmarking and their respective format
 file_list = list(get_filenames(userfiles, randfiles, supported_formats))
-output_list = dict(zip(supported_formats, file_list))
+user_input['FILELIST'] = dict(zip(supported_formats, file_list))
 
 # Write file list to `benchmarks-core` to be used in read/write
 # operations in the benchmarking
-output_json = json.dumps(output_list)
-with open('file_list.json', 'w') as outfile:
+output_json = json.dumps(user_input)
+with open('inputs.json', 'w') as outfile:
     outfile.write(output_json)

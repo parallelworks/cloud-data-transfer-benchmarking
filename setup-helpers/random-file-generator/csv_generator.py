@@ -46,15 +46,6 @@ def write(filesize : float, storage_info : dict) -> str:
     storage_info : dict
         A dictionary containing information about all storage locations
         that randomly-generated files are to be written to.
-
-    Returns
-    -------
-    full_path : str
-        Full path of the randomly generated file written into a provided cloud
-        storage location. This information is passed back to the main workflow
-        for later use, and will represent either a full URI of the object location
-        or POSIX filesystem path corresponding to the location of the object if the
-        storage is mounted.
     
     """
 
@@ -98,5 +89,3 @@ def write(filesize : float, storage_info : dict) -> str:
 
         # Print confirmation message and return path
         print(f'Files written to \"{full_path}\"')
-
-    return f'{filename}*'

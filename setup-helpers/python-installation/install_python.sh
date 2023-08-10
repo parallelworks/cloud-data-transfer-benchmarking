@@ -140,6 +140,7 @@ f_install_env() {
 
         # Other
         conda install -y -c anaconda ujson
+        conda install -y -c conda-forge numcodecs
 
         # Pip dependencies
         #pip install netCDF4

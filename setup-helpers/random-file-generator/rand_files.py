@@ -89,27 +89,21 @@ for i in range(len(file_info)):
         match current_file:
             case "CSV":
                 print('Generating CSV...')
-                file_info[0]['Filename'] = csv.write(current_size, storage_info)
+                csv.write(current_size, storage_info)
                 print('Done.')
 
             case "NetCDF4":
                 print('Generating NetCDF4...')
-                file_info[1]['Filename'] = netcdf.write(current_size, storage_info, file_info[i])
+                netcdf.write(current_size, storage_info, file_info[i])
                 print('Done.')
 
             case "Binary":
                 print('Generating binary file...')
-                file_info[2]['Filename'] = binary.write(current_size, storage_info)
+                binary.write(current_size, storage_info)
                 print('Done.')
     # End of `generate` conditional
 # End of main loop
 
 
 client.close() # Close SLURM cluster
-
-
-# Update `inputs.json`
-user_input_update = ujson.dumps(user_input)
-with open(input_file, 'w') as outfile:
-    outfile.write(user_input_update)
 # END OF SCRIPT
