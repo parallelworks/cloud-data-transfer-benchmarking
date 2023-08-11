@@ -43,12 +43,13 @@
 # Miniconda installation directory.
 # `source` command does not work with "~", 
 # so put an absolute path on the line below
-conda_version="latest" # Change for desired miniconda version
+conda_version="23.5.2" # Change for desired miniconda version
 conda_env="cloud-data" # Desired name of conda environment
 #=============================================================
 
 #                    INPUTS FROM WORKFLOW
 #==============================================================
+input_file="inputs.json"
 resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
 
 #                                       FUNCTION DEFINITIONS
@@ -61,7 +62,7 @@ f_install_miniconda() {
     then
         echo "Miniconda is already installed in \"${install_dir}\"!"
     else
-        conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-${conda_version}-Linux-x86_64.sh"
+        conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-py311_${conda_version}-Linux-x86_64.sh"
         ID=$(date +%s)-${RANDOM} # This script may run at the same time!
         nohup wget ${conda_repo} -O /tmp/miniconda-${ID}.sh 2>&1 > /tmp/miniconda_wget-${ID}.out
         rm -rf ${install_dir}
@@ -77,7 +78,7 @@ f_install_env() {
     miniconda_dir=$2
     localpath=$3
     env_filename="${my_env}_requirements.yml"
-    python_version="" # Choose specific python version or leave blank
+    python_version="3.11.4" # Choose specific python version or leave blank
 
     # Start conda and activate base environment
     source ${miniconda_dir}/etc/profile.d/conda.sh
@@ -122,34 +123,35 @@ f_install_env() {
         # Can be edited to desired evironment.
 
         # Dask
-        conda install -y -c conda-forge dask
-        conda install -y dask-jobqueue -c conda-forge
+        conda install -y -c dask=2023.8.0 conda-forge
+        conda install -y dask-jobqueue=0.8.2 -c conda-forge
 
         # Xarray
-        conda install -y -c conda-forge xarray
-        conda install -y -c conda-forge bottleneck
-        conda install -y -c conda-forge intake-xarray
-        conda install -y -c conda-forge fastparquet
-        conda install -y h5netcdf
+        conda install -y -c conda-forge xarray=0.7.0
+        conda install -y -c conda-forge bottleneck=1.3.5
+        conda install -y -c conda-forge intake-xarray=0.7.0
+        conda install -y -c conda-forge fastparquet=2023.4.0
+        conda install -y h5netcdf=1.2.0
 
         # Remote filesystems
-        conda install -y -c conda-forge gcsfs
-        conda install -y -c conda-forge s3fs
-        conda install -y -c conda-forge fsspec
+        conda install -y -c conda-forge gcsfs=2023.6.0
+        conda install -y -c conda-forge s3fs=2023.6.0
+        conda install -y -c conda-forge fsspec=2023.6.0
         #conda install -y -c conda-forge kerchunk
         
         # Plotting
-        conda install -y -c conda-forge matplotlib
+        conda install -y -c conda-forge matplotlib=3.7.1
 
         # Other
-        conda install -y -c anaconda ujson
-        conda install -y -c conda-forge numcodecs
+        conda install -y -c anaconda ujson=5.4.0
+        conda install -y -c conda-forge numcodecs=0.11.0
 
         # Pip dependencies
         #pip install netCDF4
-        pip install pyarrow
-        pip install scipy
-        pip install google-auth-oauthlib
+        pip install pyarrow==11.0.0
+        pip install scipy==1.11.1
+        pip install google-auth-oauthlib==1.0.0
+        pip install msgpack==1.0.5
 
         # Write out the ${my_env}_requirements.yml to document environment
         conda env export > ${env_filename}
