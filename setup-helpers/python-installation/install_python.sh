@@ -62,7 +62,7 @@ f_install_miniconda() {
     then
         echo "Miniconda is already installed in \"${install_dir}\"!"
     else
-        conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-py311_${conda_version}-Linux-x86_64.sh"
+        conda_repo="https://repo.anaconda.com/miniconda/Miniconda3-py311_${conda_version}-0-Linux-x86_64.sh"
         ID=$(date +%s)-${RANDOM} # This script may run at the same time!
         nohup wget ${conda_repo} -O /tmp/miniconda-${ID}.sh 2>&1 > /tmp/miniconda_wget-${ID}.out
         rm -rf ${install_dir}
@@ -188,10 +188,6 @@ do
     # If so, copies over to the current remote resource in the loop.
     if [ -e "${local_wd}/${conda_env}_requirements.yml" ]
     then
-        if [ $( tail -1 ${local_wd}/${conda_env}_requirements.yml | cut -d ' ' -f2 ) == "${miniconda_dir}/envs/${conda_env}" ]
-        then
-            echo " "
-        fi
         scp -q ${local_wd}/${conda_env}_requirements.yml ${resource}.clusters.pw:
     fi
 
