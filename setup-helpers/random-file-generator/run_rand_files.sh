@@ -21,8 +21,9 @@ LOCALDIR=$( pwd )
 f_run_rand_files() {
 
     LOCALDIR=$1
+    miniconda_dir=$2
 
-    source .miniconda3/etc/profile.d/conda.sh
+    source ${miniconda_dir}/etc/profile.d/conda.sh
     conda activate cloud-data
 
     cd cloud-data-transfer-benchmarking/random-file-generator
@@ -43,9 +44,25 @@ do
         # Set resource to write randomly generated files
         resource=$( jq -r '.RANDFILES[-1] | .Resource' ${input_file} )
 
+        resource_index=0
+        for test_resource in $(jq -r '.RESOURCES[] | .Name' ${input_file} )
+        do
+            if [ "${test_resource}" == "${resource}" ]
+            then
+                miniconda_dir=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
+                break
+            fi
+            let resource_index++
+        done
+
+        if [ "${miniconda_dir_ref}" == "~" ]
+        then
+            miniconda_dir="${HOME}/.miniconda3"
+        fi
+
         # Execute random file generation on remote cluster and clean up
         ssh ${resource}.clusters.pw "$(typeset -f f_run_rand_files); \
-                                    f_run_rand_files \"${LOCALDIR}\""
+                                    f_run_rand_files \"${LOCALDIR}\" \"${miniconda_dir}\""
         break
     fi
 done

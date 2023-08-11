@@ -29,7 +29,7 @@
 
 #                                     SCRIPT INPUTS
 #======================================================================================
-# install_python.sh "<resource-1>","<resource-2>",...,"<resource-n>"
+# install_python.sh "/path/to/input/file"
 #
 # Above is a sample call to this script. The only inputs given to this script should
 # be the name of the resources that conda and the corresponding environment will be
@@ -43,10 +43,13 @@
 # Miniconda installation directory.
 # `source` command does not work with "~", 
 # so put an absolute path on the line below
-miniconda_dir="${HOME}/.miniconda3"
 conda_version="latest" # Change for desired miniconda version
 conda_env="cloud-data" # Desired name of conda environment
 #=============================================================
+
+#                    INPUTS FROM WORKFLOW
+#==============================================================
+resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
 
 #                                       FUNCTION DEFINITIONS
 #==================================================================================================
@@ -161,9 +164,17 @@ f_install_env() {
 # Loop executes conda installation and environment construction for each resource specificed in script inputs.
 local_wd=$( pwd )/setup-helpers/python-installation
 
-for resource in $@
+resource_index=0
+for resource in ${resource_names}
 do
-    miniconda_dir_ref=${miniconda_dir}
+    # Determine if user has specified a miniconda installation directory
+    miniconda_dir_ref=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
+    if [ "${miniconda_dir_ref}" == "~" ]
+    then
+        miniconda_dir_ref="${HOME}/.miniconda3"
+    fi
+
+
     echo "Will install miniconda3 to \"${miniconda_dir_ref}\""
     # Install miniconda
     echo -e "Installing Miniconda-${conda_version} on \"${resource}\"..."
@@ -187,6 +198,8 @@ do
     ssh -q ${resource}.clusters.pw "$(typeset -f f_install_env); \
                                  f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
     echo -e "Finished building \"${conda_env}\" environment on \"${resource}\".\n"
+
+    let resource_index++
 done
 
 echo -e "Done installing Miniconda-${conda_version} and building \`${conda_env}\` on all requested resources.\n\n"

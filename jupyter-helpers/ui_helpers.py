@@ -345,6 +345,9 @@ class resourceWidgets(commonWidgets):
                             ]),
                         wg.HBox([wg.Label('Memory/node (GB): '),
                                 wg.FloatText()
+                                ]),
+                        wg.HBox([wg.Label('Miniconda Directory (Either existing installation or new)'),
+                                wg.Text(value='~')
                                 ])
                         ))
         return widget
@@ -400,7 +403,7 @@ class resourceWidgets(commonWidgets):
         for i in boxes:
             children = i.children
             resources.append({"Name" : children[0].children[1].value,
-                            #"Controller" : "PW",
+                            "MinicondaDir" : children[6].children[1].value,
                             "CSP" : children[1].children[1].value,
                             "Dask" : {"Scheduler" : children[2].children[1].value,
                                         "Partition" : children[3].children[1].value,

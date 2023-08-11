@@ -24,9 +24,10 @@ f_benchmark() {
     resource_index=$1
     results_path_local=$2
     python_script=$3
+    miniconda_dir=$4
     benchmark_dir='cloud-data-transfer-benchmarking'
 
-    source .miniconda3/etc/profile.d/conda.sh
+    source ${miniconda_dir}/etc/profile.d/conda.sh
     conda activate cloud-data
     cd ${benchmark_dir}/benchmarks-core
 
@@ -43,18 +44,26 @@ f_benchmark() {
                         # MAIN PROGRAM #
 ######################################################################
 
-resource_names=$( jq -r '.RESOURCES[] | .Name' inputs.json )
+input_file="inputs.json"
+resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
 
 # Initialize resource tracking index and make results directory & file
-resource_index=0
 results_path=$( pwd )/results/csv-files # Results directory in user container
 mkdir -p ${results_path}
 
 # Loop through resources and run conversion code
+resource_index=0
 for resource in ${resource_names}
 do
+    miniconda_dir=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
+
+    if [ "${miniconda_dir_ref}" == "~" ]
+    then
+        miniconda_dir_ref="${HOME}/.miniconda3"
+    fi
+
     ssh -q ${resource}.clusters.pw "$(typeset -f f_benchmark); \
-                                    f_benchmark ${resource_index} ${results_path} ${python_script}"
+                                    f_benchmark ${resource_index} ${results_path} ${python_script} ${miniconda_dir}"
     
 
     # Append results of current resource's test to a single file

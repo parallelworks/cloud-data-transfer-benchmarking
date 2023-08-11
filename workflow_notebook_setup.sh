@@ -17,8 +17,7 @@ remote_benchmark_dir='cloud-data-transfer-benchmarking'
 
 
 # 1. MINICONDA INSTALLATION AND "cloud-data" ENVIRONMENT CONSTRUCTON:
-resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
-bash $( pwd )/setup-helpers/python-installation/install_python.sh ${resource_names}
+bash $( pwd )/setup-helpers/python-installation/install_python.sh ${input_file}
 
 
 # 2. GET MAXIMUM WORKER NODE COUNT FROM EACH RESOURCE INPUT BY USER
@@ -32,13 +31,14 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 #bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
-# 4. MAKE .json OF FILES TO BE BENCHMARKED
+# 4. UPDATE inputs.json WITH FILES TO BE BENCHMARKED
 source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
 conda activate base
 python -u $( pwd )/setup-helpers/create_file_list.py
 
 
 # 5. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
+resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
 for resource in ${resource_names}
 do
     # Copy `benchmarks-core`, `random-file-generator`, and `inputs.json` to current iteration's cluster
