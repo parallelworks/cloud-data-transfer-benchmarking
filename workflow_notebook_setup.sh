@@ -21,10 +21,10 @@ local_conda_sh=$( jq -r '.GLOBALOPTS.local_conda_sh' ${input_file} )
 bash $( pwd )/setup-helpers/python-installation/install_python.sh ${input_file}
 
 
-# 2. GET MAXIMUM WORKER NODE COUNT FROM EACH RESOURCE INPUT BY USER
+# 2. SET INPUTS THAT LIMIT THE POWER OF CLUSTERS FOR A FAIR COMPARISON
 # This step will eventually be used to also limit cluster resources
 # to be equal to the least-powerful cluster defined in the inputs
-bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh ${local_conda_sh}
+bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${local_conda_sh}
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES

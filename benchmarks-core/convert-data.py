@@ -53,11 +53,20 @@ file_list = inputs['FILELIST']
 convert_options = inputs['CONVERTOPTS']
 resource = inputs['RESOURCES'][resource_index]
 
-# Resource-specific information
-resource_name = resource['Name']
-resource_csp = resource['CSP']
-dask_options = resource['Dask']
-max_nodes = dask_options['MaxNodes']
+
+# Dask Options
+## Resource-specific options
+cpus = resource['Dask']['CPUs']
+partition = resource['Dask']['Partition']
+scheduler = resource['Dask']['Scheduler']
+
+## Global options
+dask_options = global_options['Dask']
+max_workers = dask_options['MaxWorkers']
+processes = dask_options['Workers']
+cores = dask_options['CPUs']
+memory = dask_options['Memory']
+memory = f'{int(round(memory))} GB'
 #################################################################
 
 
@@ -66,19 +75,16 @@ max_nodes = dask_options['MaxNodes']
 # TODO: Limit more powerful clusters to use the same amount of
 # resources as the least-powerful cluster in the benchmarking.
 if __name__ == '__main__':
-    cores = dask_options['CPUs']
-    memory = dask_options['Memory']
-    memory = f'{int(round(memory))} GB'
     dask_dir = '/mnt/shared/dask/convert-data/dask-worker-logs'
 
-    match dask_options['Scheduler']:
+    match scheduler:
         case 'SLURM':
             cluster = SLURMCluster(account='convert',
-                                queue=dask_options['Partition'],
-                                job_cpu=cores,
+                                queue=partition,
+                                job_cpu=cpus,
                                 cores=cores,
                                 memory=memory,
-                                processes=1,
+                                processes=processes,
                                 job_directives_skip=['--mem'],
                                 walltime='01:00:00',
                                 log_directory=dask_dir
@@ -109,9 +115,9 @@ if resource_index > 0:
 
 
 # Scale cluster up to maximum
-cluster.scale(max_nodes)
+cluster.scale(max_workers)
 print('Waiting for worker nodes to start up...')
-client.wait_for_workers(max_nodes)
+client.wait_for_workers(max_workers)
 print('Workers active.\n\n')
 
 

@@ -98,9 +98,20 @@ tests = global_options['tests']
 # Resource-specific options
 resource_name = resource['Name']
 resource_csp = resource['CSP']
-dask_options = resource['Dask']
-max_nodes = dask_options['MaxNodes']
-max_workers = max_nodes
+
+# Dask Options
+## Resource-specific options
+cpus = resource['Dask']['CPUs']
+partition = resource['Dask']['Partition']
+scheduler = resource['Dask']['Scheduler']
+
+## Global options
+dask_options = global_options['Dask']
+max_workers = dask_options['MaxWorkers']
+processes = dask_options['Workers']
+cores = dask_options['CPUs']
+memory = dask_options['Memory']
+memory = f'{int(round(memory))} GB'
 #################################################################
 
 
@@ -109,19 +120,16 @@ max_workers = max_nodes
 # TODO: Limit more powerful clusters to use the same amount of
 # resources as the least-powerful cluster in the benchmarking.
 if __name__ == '__main__':
-    cores = dask_options['CPUs']
-    memory = dask_options['Memory']
-    memory = f'{int(round(memory))} GB'
     dask_dir = '/mnt/shared/dask/read-data/dask-worker-logs'
 
-    match dask_options['Scheduler']:
+    match scheduler:
         case 'SLURM':
-            cluster = SLURMCluster(account='convert',
-                                queue=dask_options['Partition'],
-                                job_cpu=cores,
+            cluster = SLURMCluster(account='read',
+                                queue=partition,
+                                job_cpu=cpus,
                                 cores=cores,
                                 memory=memory,
-                                processes=1,
+                                processes=processes,
                                 job_directives_skip=['--mem'],
                                 walltime='01:00:00',
                                 log_directory=dask_dir
@@ -179,8 +187,8 @@ for store in stores:
         # Stage dataframe for read operation by loading as a Dask array
         df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
         print('Computing array column lengths...')
-        cluster.scale(max_nodes)
-        client.wait_for_workers(max_nodes)
+        cluster.scale(max_workers)
+        client.wait_for_workers(max_workers)
         dask_array = df.to_dask_array(lengths=True)
         print('Done.')
         chunksize = np.prod(dask_array.chunksize) * dask_array.dtype.itemsize
