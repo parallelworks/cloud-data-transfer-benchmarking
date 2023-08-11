@@ -33,8 +33,9 @@ get_max_nodes() {
 }
 
 
-# Source from miniconda embedded in every usercontainer
-source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
+local_conda_sh=$1
+
+source ${local_conda_sh}/etc/profile.d/conda.sh
 conda activate base
 local_dir=$( pwd )/setup-helpers/get-max-resource-nodes
 input_file='inputs.json'

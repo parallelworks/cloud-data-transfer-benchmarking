@@ -346,7 +346,7 @@ class resourceWidgets(commonWidgets):
                         wg.HBox([wg.Label('Memory/node (GB): '),
                                 wg.FloatText()
                                 ]),
-                        wg.HBox([wg.Label('Miniconda Directory (Either existing installation or new)'),
+                        wg.HBox([wg.Label('Miniconda Directory: '),
                                 wg.Text(value='~')
                                 ])
                         ))
@@ -979,7 +979,7 @@ class convertOptions(commonWidgets):
                 size = file['SizeGB']
                 fformat = file['Format']
                 if fformat == 'CSV':
-                    self.tabular_datasets.append(f'random_{float(size)}GB_CSV/*')
+                    self.tabular_datasets.append(f'random_{float(size)}GB_CSV')
                 elif fformat == 'NetCDF4':
                     self.gridded_datasets.append(f'random_{float(size)}GB_NetCDF4.nc')
 
@@ -990,7 +990,7 @@ class convertOptions(commonWidgets):
             split_path = [ele for ele in sourcepath.split('/') if len(ele)!=0]
             path = split_path[-1]
             if path == '*':
-                path = f'{split_path[-2]}/{path}'
+                path = split_path[-2]
 
             if fformat == 'CSV':
                 if not path in self.tabular_datasets:
@@ -1060,8 +1060,6 @@ class convertOptions(commonWidgets):
                                                     'lz4',
                                                     'gzip',
                                                     'zstd')
-                    compression_level.value = 5
-                    compression_level.disabled = True
                     datasets.options = self.tabular_datasets
                 elif format_type == 'Gridded':
                     compression_algorithm.options=('lz4',
@@ -1071,7 +1069,6 @@ class convertOptions(commonWidgets):
                                                     'zstd',
                                                     'gzip',
                                                     'bzip2')
-                    compression_level.disabled = False
                     datasets.options = self.gridded_datasets
         # END INNER FUNCTION
 
@@ -1104,16 +1101,9 @@ class convertOptions(commonWidgets):
         for i in data:
             children = i.children
 
-            data_format_type = children[0].children[1].value
-            if data_format_type == 'Tabular':
-                level = 10
-            elif data_format_type == 'Gridded':
-                level = children[2].children[1].value
-            
-
             # Populate dictionary with fields
             convert_options.append({"Algorithms" : children[1].children[1].value,
-                            "Level" : level,
+                            "Level" : children[2].children[1].value,
                             "Chunksize" : children[3].children[1].value,
                             "Datasets" : children[4].children[1].value})
 

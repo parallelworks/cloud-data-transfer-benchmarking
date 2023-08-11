@@ -14,6 +14,7 @@
 # (DO NOT CHANGE)
 input_file='inputs.json'
 remote_benchmark_dir='cloud-data-transfer-benchmarking'
+local_conda_sh=$( jq -r '.GLOBALOPTS.local_conda_sh' ${input_file} )
 
 
 # 1. MINICONDA INSTALLATION AND "cloud-data" ENVIRONMENT CONSTRUCTON:
@@ -23,7 +24,7 @@ bash $( pwd )/setup-helpers/python-installation/install_python.sh ${input_file}
 # 2. GET MAXIMUM WORKER NODE COUNT FROM EACH RESOURCE INPUT BY USER
 # This step will eventually be used to also limit cluster resources
 # to be equal to the least-powerful cluster defined in the inputs
-bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
+bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh ${local_conda_sh}
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
@@ -32,7 +33,7 @@ bash $( pwd )/setup-helpers/get-max-resource-nodes/getmax.sh
 
 
 # 4. UPDATE inputs.json WITH FILES TO BE BENCHMARKED
-source ${HOME}/pw/miniconda/etc/profile.d/conda.sh
+source ${local_conda_sh}/etc/profile.d/conda.sh
 conda activate base
 python -u $( pwd )/setup-helpers/create_file_list.py
 

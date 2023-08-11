@@ -158,8 +158,6 @@ for store in stores:
         for option_set in convert_options:
             if dataset_name in option_set['Datasets']:
 
-
-
                 # Load CSV dataset
                 df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
                 df = df.rename(columns=str)
@@ -168,13 +166,19 @@ for store in stores:
                 chunksize=option_set['Chunksize']
                 df = df.repartition(partition_size=f'{chunksize}MB')
 
+                # Make copy of storage options and set compression level to pass when conversion is executed
+                lvl = option_set['Level']
+                so = copy.copy(storage_options)
+                so['compression_level'] = lvl
+
+                # Loop through algorithms
                 for algorithm in option_set['Algorithms']:
                     # Set paths for upload and recording into the file list
-                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}.parquet'
-                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}.parquet' # Path to update file list
+                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{algorithm}_{lvl}.parquet'
+                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{algorithm}_{lvl}.parquet' # Path to update file list
 
                     # Convert the CSV file to parquet and time the execution
-                    print(f'Converting {dataset_name} with {chunksize}MB chunks & {algorithm} compression to Parquet...')
+                    print(f'Converting \"{dataset_name}\" with {chunksize}MB chunks & level {lvl} {algorithm} compression to Parquet...')
                     diag_kwargs = dict(resource=resource_name,
                                     resource_csp=resource_csp,
                                     bucket=base_uri,
@@ -183,18 +187,18 @@ for store in stores:
                                     orig_dataset_name=dataset_name,
                                     data_vars='N/A',
                                     compr_alg=algorithm,
-                                    compr_lvl=5,
+                                    compr_lvl=lvl,
                                     chunksize_MB=chunksize)
 
                     with diag_timer.time(**diag_kwargs):
-                        df.to_parquet(f'{base_uri}/{upload_path}', name_function=name_function, storage_options=storage_options, compression=algorithm)
+                        df.to_parquet(f'{base_uri}/{upload_path}', name_function=name_function, compression=algorithm, storage_options=so)
 
                     print(f'Written to \"{base_uri}/{upload_path}\"')
 
 
                     # Update file list
                     if update_file_list:
-                        file_list['Parquet'].append(list_upload_path)
+                        file_list['Parquet'].append(f'{list_upload_path}/*')
 
 
 
@@ -257,7 +261,7 @@ for store in stores:
 
                     # Convert the NetCDF4 file to Zarr and record the results
                     data_var_string = ', '.join(dvars)
-                    print(f'Converting data variables {data_var_string} from {dataset_name} with {chunksize}MB chunks & level {lvl} {alg} compression to Zarr...')
+                    print(f'Converting data variables \"{data_var_string}\" from \"{dataset_name}\" with {chunksize}MB chunks & level {lvl} {alg} compression to Zarr...')
                     diag_kwargs = dict(resource=resource_name,
                                     resource_csp=resource_csp,
                                     bucket=base_uri,

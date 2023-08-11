@@ -55,7 +55,7 @@ do
             let resource_index++
         done
 
-        if [ "${miniconda_dir_ref}" == "~" ]
+        if [ "${miniconda_dir}" == "~" ]
         then
             miniconda_dir="${HOME}/.miniconda3"
         fi

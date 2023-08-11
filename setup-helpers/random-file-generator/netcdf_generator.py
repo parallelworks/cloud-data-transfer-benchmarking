@@ -31,7 +31,6 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
 
     dvars = nc_info['Data Variables']
     float_axes = nc_info['Float Coords']
-    time_axes = 1
 
     # Define constants used for finding dimension lengths
     GB2Byte = 1000000000 # Conversion factor from GB to B
@@ -39,7 +38,7 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
     coord_bytes = 8 # eight bytes for each integer coordinate value
     time_bytes = 8 # eight bytes for each time value
     overhead = 0 # Will have to compute seperately
-    n_dims = float_axes + time_axes # Total number of desired dimensions
+    n_dims = float_axes # Total number of desired dimensions
 
 
     # Populate polynomial coefficients list
@@ -86,7 +85,6 @@ def define_dataset(nc_info : dict, dim_length : int):
     # Load user input for axes and data variablees
     dvars = nc_info['Data Variables']
     float_axes = nc_info['Float Coords']
-    time_axes = 1
 
     # Create axes
     axs_names = []
@@ -97,18 +95,13 @@ def define_dataset(nc_info : dict, dim_length : int):
         axs_names.append('f' + str(i+1))
         axs_info.append(list(np.linspace(0, dim_length/2, dim_length)))
 
-    # Time axes
-    for i in range(int(time_axes)):
-        axs_names.append('t' + str(i+1))
-        axs_info.append(list(np.linspace(0, dim_length/2, dim_length)))
-
     # Store names and coordinates
     axs_names = tuple(axs_names)
     coords = dict(zip(axs_names, axs_info))
 
 
     # Data variables
-    shape = tuple([dim_length] * int(float_axes + time_axes)) # Shape of data variable arrays
+    shape = tuple([dim_length] * int(float_axes)) # Shape of data variable arrays
     var_names = []
     data_info = []
     for i in range(int(dvars)):

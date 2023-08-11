@@ -57,9 +57,9 @@ for resource in ${resource_names}
 do
     miniconda_dir=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
 
-    if [ "${miniconda_dir_ref}" == "~" ]
+    if [ "${miniconda_dir}" == "~" ]
     then
-        miniconda_dir_ref="${HOME}/.miniconda3"
+        miniconda_dir="${HOME}/.miniconda3"
     fi
 
     ssh -q ${resource}.clusters.pw "$(typeset -f f_benchmark); \

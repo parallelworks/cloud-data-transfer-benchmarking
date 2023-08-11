@@ -64,8 +64,9 @@ def MainLoop(dask_array, max_workers, diag_kwargs, worker_step=2, tests=5):
                 future = da.store(dask_array, null_store, lock=False, compute=False)
                 dask.compute(future, retries=5)
 
-        diag_timer.compute_stats()
-        diag_timer.reset_lists(reset_tmp=True)
+        if i != 0:
+            diag_timer.compute_stats()
+            diag_timer.reset_lists(reset_tmp=True)
 #################################################################
 
 
@@ -178,8 +179,10 @@ for store in stores:
         # Stage dataframe for read operation by loading as a Dask array
         df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
         print('Computing array column lengths...')
+        cluster.scale(max_nodes)
+        client.wait_for_workers(max_nodes)
         dask_array = df.to_dask_array(lengths=True)
-        print('Done')
+        print('Done.')
         chunksize = np.prod(dask_array.chunksize) * dask_array.dtype.itemsize
 
 
@@ -216,6 +219,8 @@ for store in stores:
 
 
         print('Computing array column lengths...')
+        cluster.scale(max_nodes)
+        client.wait_for_workers(max_nodes)
         dask_array = df.to_dask_array(lengths=True)
         print('Done.')
 
