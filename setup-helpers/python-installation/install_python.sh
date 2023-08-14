@@ -50,7 +50,7 @@ conda_env="cloud-data" # Desired name of conda environment
 #                    INPUTS FROM WORKFLOW
 #==============================================================
 input_file="inputs.json"
-resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
+resource_ips=$( jq -r '.RESOURCES[] | .IP' ${input_file} )
 
 #                                       FUNCTION DEFINITIONS
 #==================================================================================================
@@ -167,7 +167,7 @@ f_install_env() {
 local_wd=$( pwd )/setup-helpers/python-installation
 
 resource_index=0
-for resource in ${resource_names}
+for resource in ${resource_ips}
 do
     # Determine if user has specified a miniconda installation directory
     miniconda_dir_ref=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
@@ -180,8 +180,8 @@ do
     echo "Will install miniconda3 to \"${miniconda_dir_ref}\""
     # Install miniconda
     echo -e "Installing Miniconda-${conda_version} on \"${resource}\"..."
-    ssh -q ${resource}.clusters.pw "$(typeset -f f_install_miniconda); \
-                                 f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
+    ssh -q ${resource} "$(typeset -f f_install_miniconda); \
+                        f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
     echo -e "Finished installing Miniconda on \"${resource}\".\n"
 
     # Checks to see if local copy of requirements file exists.
@@ -193,8 +193,8 @@ do
 
     # Build environment
     echo -e "Building \"${conda_env}\" environment on \"${resource}\"..."
-    ssh -q ${resource}.clusters.pw "$(typeset -f f_install_env); \
-                                 f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
+    ssh -q ${resource} "$(typeset -f f_install_env); \
+                        f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
     echo -e "Finished building \"${conda_env}\" environment on \"${resource}\".\n"
 
     let resource_index++

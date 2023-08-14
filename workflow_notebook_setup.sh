@@ -39,17 +39,17 @@ python -u $( pwd )/setup-helpers/create_file_list.py
 
 
 # 5. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
-resource_names=$( jq -r '.RESOURCES[] | .Name' ${input_file} )
-for resource in ${resource_names}
+resource_ips=$( jq -r '.RESOURCES[] | .IP' ${input_file} )
+for resource in ${resource_ips}
 do
     # Copy `benchmarks-core`, `random-file-generator`, and `inputs.json` to current iteration's cluster
     # and make directories
-    ssh ${resource}.clusters.pw "mkdir -p ${remote_benchmark_dir}/storage-keys; \
-                                mkdir -p ${remote_benchmark_dir}/inputs; \
-                                mkdir -p ${remote_benchmark_dir}/outputs"
-    rsync -q -r $( pwd )/benchmarks-core ${resource}.clusters.pw:${remote_benchmark_dir}
-    rsync -q -r $( pwd )/setup-helpers/random-file-generator ${resource}.clusters.pw:${remote_benchmark_dir}
-    scp -q ${input_file} ${resource}.clusters.pw:${remote_benchmark_dir}/inputs
+    ssh ${resource} "mkdir -p ${remote_benchmark_dir}/storage-keys; \
+                    mkdir -p ${remote_benchmark_dir}/inputs; \
+                    mkdir -p ${remote_benchmark_dir}/outputs"
+    rsync -q -r $( pwd )/benchmarks-core ${resource}:${remote_benchmark_dir}
+    rsync -q -r $( pwd )/setup-helpers/random-file-generator ${resource}:${remote_benchmark_dir}
+    scp -q ${input_file} ${resource}:${remote_benchmark_dir}/inputs
 
 
     # Copy over access credentials (AWS credentials are provided as pure
@@ -69,7 +69,7 @@ do
                 if [ -n "${tokenpath}" ]
                 then
                     # For google credentials, copy them into `storage-keys`
-                    scp -q ${tokenpath} ${resource}.clusters.pw:${remote_benchmark_dir}/storage-keys
+                    scp -q ${tokenpath} ${resource}:${remote_benchmark_dir}/storage-keys
                 fi
                 ;;
         esac

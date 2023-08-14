@@ -50,13 +50,13 @@ num_resources=$( jq -r '.RESOURCES[] | length' ${input_file} | wc -l )
 for i in $( seq ${num_resources} )
 do
     let index=i-1 # Adjust index to follow base 0 indexing
-    resource=$( jq -r ".RESOURCES[${index}] | .Name" ${input_file} ) # grab resource name
+    resource=$( jq -r ".RESOURCES[${index}] | .IP" ${input_file} ) # grab resource name
     partition=$( jq -r ".RESOURCES[${index}] | .Dask.Partition" ${input_file} ) # grab partition name
     scheduler=$( jq -r ".RESOURCES[${index}] | .Dask.Scheduler" ${input_file} ) # grab scheduler name
 
     # Run `get_max_nodes` function on remote resource
-    ssh ${resource}.clusters.pw "$(typeset -f get_max_nodes); \
-                                 get_max_nodes \"${partition}\" \"${scheduler}\" ${local_dir}"
+    ssh ${resource} "$(typeset -f get_max_nodes); \
+                    get_max_nodes \"${partition}\" \"${scheduler}\" ${local_dir}"
 
     # Read max node number from file and clean up
     max_nodes=$( cat ${local_dir}/max_nodes )

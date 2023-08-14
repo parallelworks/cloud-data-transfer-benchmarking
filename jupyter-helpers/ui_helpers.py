@@ -331,6 +331,9 @@ class resourceWidgets(commonWidgets):
         widget = wg.VBox((wg.HBox([wg.Label('Resource Name: '),
                                  wg.Text()
                                 ]),
+                        wg.HBox([wg.Label('Public IP: '),
+                                wg.Text()
+                            ]),
                         wg.HBox([wg.Label('Cloud Service Provider: '),
                                 wg.Dropdown(options=('GCP', 'AWS'))
                             ]),
@@ -403,12 +406,13 @@ class resourceWidgets(commonWidgets):
         for i in boxes:
             children = i.children
             resources.append({"Name" : children[0].children[1].value,
-                            "MinicondaDir" : children[6].children[1].value,
-                            "CSP" : children[1].children[1].value,
-                            "Dask" : {"Scheduler" : children[2].children[1].value,
-                                        "Partition" : children[3].children[1].value,
-                                        "CPUs" : children[4].children[1].value,
-                                        "Memory" : children[5].children[1].value
+                            "IP" : children[1].children[1].value,
+                            "MinicondaDir" : children[7].children[1].value,
+                            "CSP" : children[1].children[2].value,
+                            "Dask" : {"Scheduler" : children[3].children[1].value,
+                                        "Partition" : children[4].children[1].value,
+                                        "CPUs" : children[5].children[1].value,
+                                        "Memory" : children[6].children[1].value
                                         }
                                               })
 
