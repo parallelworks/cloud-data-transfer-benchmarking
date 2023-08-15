@@ -45,7 +45,7 @@ f_benchmark() {
 ######################################################################
 
 input_file="inputs.json"
-resource_ips=$( jq -r '.RESOURCES[] | .IP' ${input_file} )
+resources=$( jq -r '.RESOURCES[] | .SSH' ${input_file} )
 
 # Initialize resource tracking index and make results directory & file
 results_path=$( pwd )/results/csv-files # Results directory in user container
@@ -53,7 +53,7 @@ mkdir -p ${results_path}
 
 # Loop through resources and run conversion code
 resource_index=0
-for resource in ${resource_ips}
+for resource in ${resources}
 do
     miniconda_dir=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
 
@@ -62,8 +62,8 @@ do
         miniconda_dir="${HOME}/.miniconda3"
     fi
 
-    ssh -q ${resource} "$(typeset -f f_benchmark); \
-                        f_benchmark ${resource_index} ${results_path} ${python_script} ${miniconda_dir}"
+    ssh -q -o StrictHostKeyChecking=no ${resource} "$(typeset -f f_benchmark); \
+                                                    f_benchmark ${resource_index} ${results_path} ${python_script} ${miniconda_dir}"
     
 
     # Append results of current resource's test to a single file

@@ -227,8 +227,8 @@ for store in stores:
 
 
         print('Computing array column lengths...')
-        cluster.scale(max_nodes)
-        client.wait_for_workers(max_nodes)
+        cluster.scale(max_workers)
+        client.wait_for_workers(max_workers)
         dask_array = df.to_dask_array(lengths=True)
         print('Done.')
 

@@ -4,10 +4,7 @@
 # benchmarking workflow. This script will be
 # called by the Jupyter notebook `main.ipynb`
 # upon execution of the "Step 2: Notebook Setup"
-# cell. Setup includes miniconda installation 
-# and required environment build on resources 
-# requested by the user.
-
+# cell. 
 ##################MAIN PROGRAM######################
 
 # Name input file and remote benchmarking directory
@@ -22,13 +19,11 @@ bash $( pwd )/setup-helpers/python-installation/install_python.sh ${input_file}
 
 
 # 2. SET INPUTS THAT LIMIT THE POWER OF CLUSTERS FOR A FAIR COMPARISON
-# This step will eventually be used to also limit cluster resources
-# to be equal to the least-powerful cluster defined in the inputs
 bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${local_conda_sh}
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
-# TODO: `transfer_user_data.sh` needs work still
+# NOTE: Will only reliably work with local -> cloud data transfers.
 #bash $( pwd )/setup-helpers/transfer_user_data.sh
 
 
@@ -39,17 +34,17 @@ python -u $( pwd )/setup-helpers/create_file_list.py
 
 
 # 5. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES
-resource_ips=$( jq -r '.RESOURCES[] | .IP' ${input_file} )
-for resource in ${resource_ips}
+resource_ssh=$( jq -r '.RESOURCES[] | .SSH' ${input_file} )
+for resource in ${resource_ssh}
 do
     # Copy `benchmarks-core`, `random-file-generator`, and `inputs.json` to current iteration's cluster
-    # and make directories
-    ssh ${resource} "mkdir -p ${remote_benchmark_dir}/storage-keys; \
-                    mkdir -p ${remote_benchmark_dir}/inputs; \
-                    mkdir -p ${remote_benchmark_dir}/outputs"
-    rsync -q -r $( pwd )/benchmarks-core ${resource}:${remote_benchmark_dir}
-    rsync -q -r $( pwd )/setup-helpers/random-file-generator ${resource}:${remote_benchmark_dir}
-    scp -q ${input_file} ${resource}:${remote_benchmark_dir}/inputs
+    # and make supplementary directories
+    ssh -o StrictHostKeyChecking=no ${resource} "mkdir -p ${remote_benchmark_dir}/storage-keys; \
+                                                mkdir -p ${remote_benchmark_dir}/inputs; \
+                                                mkdir -p ${remote_benchmark_dir}/outputs"
+    rsync -q -r -e "ssh -o StrictHostKeyChecking=no" $( pwd )/benchmarks-core ${resource}:${remote_benchmark_dir}
+    rsync -q -r -e "ssh -o StrictHostKeyChecking=no" $( pwd )/setup-helpers/random-file-generator ${resource}:${remote_benchmark_dir}
+    scp -q -o StrictHostKeyChecking=no ${input_file} ${resource}:${remote_benchmark_dir}/inputs
 
 
     # Copy over access credentials (AWS credentials are provided as pure
@@ -68,8 +63,8 @@ do
                 # Only copy credentials over if file exists
                 if [ -n "${tokenpath}" ]
                 then
-                    # For google credentials, copy them into `storage-keys`
-                    scp -q ${tokenpath} ${resource}:${remote_benchmark_dir}/storage-keys
+                    # For Google credentials, copy them into `storage-keys`
+                    scp -q -o StrictHostKeyChecking=no ${tokenpath} ${resource}:${remote_benchmark_dir}/storage-keys
                 fi
                 ;;
         esac

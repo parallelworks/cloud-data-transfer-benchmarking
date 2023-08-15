@@ -52,6 +52,7 @@ stores = inputs['STORAGE']
 file_list = inputs['FILELIST']
 convert_options = inputs['CONVERTOPTS']
 resource = inputs['RESOURCES'][resource_index]
+global_options = inputs['GLOBALOPTS']
 
 
 # Dask Options
@@ -121,7 +122,9 @@ client.wait_for_workers(max_workers)
 print('Workers active.\n\n')
 
 
-
+# Resource-Specific Information
+resource_name = resource['Name']
+resource_csp = resource['CSP']
 
 
 # Begin conversion process

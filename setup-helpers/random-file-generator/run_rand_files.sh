@@ -50,7 +50,7 @@ do
             if [ "${test_resource}" == "${resource}" ]
             then
                 miniconda_dir=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
-                ip=$( jq -r ".RESOURCES[${resource_index}] | .IP" ${input_file} )
+                resource_ssh=$( jq -r ".RESOURCES[${resource_index}] | .SSH" ${input_file} )
                 break
             fi
             let resource_index++
@@ -62,8 +62,8 @@ do
         fi
 
         # Execute random file generation on remote cluster and clean up
-        ssh ${ip} "$(typeset -f f_run_rand_files); \
-                        f_run_rand_files \"${LOCALDIR}\" \"${miniconda_dir}\""
+        ssh -o StrictHostKeyChecking=no ${resource_ssh} "$(typeset -f f_run_rand_files); \
+                                                        f_run_rand_files \"${LOCALDIR}\" \"${miniconda_dir}\""
         break
     fi
 done

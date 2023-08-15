@@ -36,7 +36,6 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
     GB2Byte = 1000000000 # Conversion factor from GB to B
     value_bytes = 8 # eight bytes for each float value in the data variable
     coord_bytes = 8 # eight bytes for each integer coordinate value
-    time_bytes = 8 # eight bytes for each time value
     overhead = 0 # Will have to compute seperately
     n_dims = float_axes # Total number of desired dimensions
 
@@ -46,7 +45,7 @@ def compute_dim_length(filesize : float, nc_info : dict) -> int:
     for i in range(int(n_dims)-2):
         coeffs.append(0) # All coefficents of polynomial terms with
                             # order n-1 to 2 will be zero
-    coeffs.append(coord_bytes*float_axes + time_bytes*time_axes) # Dimension coefficient
+    coeffs.append(coord_bytes*float_axes) # Dimension coefficient
     coeffs.append(-filesize*GB2Byte + overhead) # Final term representing filesize & overhead
 
 

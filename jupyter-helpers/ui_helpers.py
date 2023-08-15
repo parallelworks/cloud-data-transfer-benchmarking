@@ -329,9 +329,9 @@ class resourceWidgets(commonWidgets):
     def widget_func(self):
         "Defines the widgets that will be used in this particular field of inputs"
         widget = wg.VBox((wg.HBox([wg.Label('Resource Name: '),
-                                 wg.Text()
+                                 wg.Text(value='cluster1')
                                 ]),
-                        wg.HBox([wg.Label('Public IP: '),
+                        wg.HBox([wg.Label('SSH Hostname: '),
                                 wg.Text()
                             ]),
                         wg.HBox([wg.Label('Cloud Service Provider: '),
@@ -406,9 +406,9 @@ class resourceWidgets(commonWidgets):
         for i in boxes:
             children = i.children
             resources.append({"Name" : children[0].children[1].value,
-                            "IP" : children[1].children[1].value,
+                            "SSH" : children[1].children[1].value,
                             "MinicondaDir" : children[7].children[1].value,
-                            "CSP" : children[1].children[2].value,
+                            "CSP" : children[2].children[1].value,
                             "Dask" : {"Scheduler" : children[3].children[1].value,
                                         "Partition" : children[4].children[1].value,
                                         "CPUs" : children[5].children[1].value,

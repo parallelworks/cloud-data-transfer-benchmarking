@@ -50,7 +50,7 @@ conda_env="cloud-data" # Desired name of conda environment
 #                    INPUTS FROM WORKFLOW
 #==============================================================
 input_file="inputs.json"
-resource_ips=$( jq -r '.RESOURCES[] | .IP' ${input_file} )
+resources=$( jq -r '.RESOURCES[] | .SSH' ${input_file} )
 
 #                                       FUNCTION DEFINITIONS
 #==================================================================================================
@@ -77,7 +77,7 @@ f_install_env() {
     my_env=$1
     miniconda_dir=$2
     localpath=$3
-    env_filename="${my_env}_requirements.yml"
+    env_filename="${my_env}-requirements.yaml"
     python_version="3.11.4" # Choose specific python version or leave blank
 
     # Start conda and activate base environment
@@ -103,18 +103,15 @@ f_install_env() {
 
     elif [ -e ${env_filename} ]
     then
+        echo "Creating environment from \"${env_filename}\""
         conda env create -f ${env_filename}
         # Will build environment from requirements file
         # if it exists
         rm ${env_filename} # Clean up
-
-    elif [[ ${my_env} == "base" ]]
-    then
-        echo "Done installing packages in base environment."
-
+        
     else
         # We often run Jupter notebooks so include ipython here.
-        conda create -y --name ${my_env} python${python_version} ipython
+        conda create -y --name ${my_env} python=${python_version}
 
         # Jump into new environment
         conda activate ${my_env}
@@ -123,38 +120,38 @@ f_install_env() {
         # Can be edited to desired evironment.
 
         # Dask
-        conda install -y -c dask=2023.8.0 conda-forge
-        conda install -y dask-jobqueue=0.8.2 -c conda-forge
+        conda install -y dask -c conda-forge
+        conda install -y dask-jobqueue -c conda-forge
 
         # Xarray
-        conda install -y -c conda-forge xarray=0.7.0
-        conda install -y -c conda-forge bottleneck=1.3.5
-        conda install -y -c conda-forge intake-xarray=0.7.0
-        conda install -y -c conda-forge fastparquet=2023.4.0
-        conda install -y h5netcdf=1.2.0
+        conda install -y -c conda-forge xarray
+        conda install -y -c conda-forge bottleneck
+        conda install -y -c conda-forge intake-xarray
+        conda install -y -c conda-forge fastparquet
+        conda install -y h5netcdf
 
         # Remote filesystems
-        conda install -y -c conda-forge gcsfs=2023.6.0
-        conda install -y -c conda-forge s3fs=2023.6.0
-        conda install -y -c conda-forge fsspec=2023.6.0
+        conda install -y -c conda-forge fsspec
+        conda install -y -c conda-forge gcsfs
+        conda install -y -c conda-forge s3fs
+
+        # Add this back in if virtual dataset functionality
+        # in `benchmarks-core/core_helpers.py` is fixed
         #conda install -y -c conda-forge kerchunk
-        
-        # Plotting
-        conda install -y -c conda-forge matplotlib=3.7.1
 
         # Other
-        conda install -y -c anaconda ujson=5.4.0
-        conda install -y -c conda-forge numcodecs=0.11.0
+        conda install -y -c anaconda ujson
+        conda install -y -c conda-forge numcodecs
 
         # Pip dependencies
         #pip install netCDF4
-        pip install pyarrow==11.0.0
-        pip install scipy==1.11.1
+        #pip install pyarrow
+        pip install scipy
         pip install google-auth-oauthlib==1.0.0
         pip install msgpack==1.0.5
 
-        # Write out the ${my_env}_requirements.yml to document environment
-        conda env export > ${env_filename}
+        # Write out the ${my_env}-requirements.yaml to document environment
+        conda env export | grep -v "^prefix: " > ${env_filename}
         scp -q ${env_filename} usercontainer:${localpath}
         rm ${env_filename}
     fi
@@ -167,8 +164,10 @@ f_install_env() {
 local_wd=$( pwd )/setup-helpers/python-installation
 
 resource_index=0
-for resource in ${resource_ips}
+for resource in ${resources}
 do
+    resource_name=$( jq -r ".RESOURCES[${resource_index}] | .Name" ${input_file} )
+
     # Determine if user has specified a miniconda installation directory
     miniconda_dir_ref=$( jq -r ".RESOURCES[${resource_index}] | .MinicondaDir" ${input_file} )
     if [ "${miniconda_dir_ref}" == "~" ]
@@ -179,23 +178,23 @@ do
 
     echo "Will install miniconda3 to \"${miniconda_dir_ref}\""
     # Install miniconda
-    echo -e "Installing Miniconda-${conda_version} on \"${resource}\"..."
-    ssh -q ${resource} "$(typeset -f f_install_miniconda); \
-                        f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
-    echo -e "Finished installing Miniconda on \"${resource}\".\n"
+    echo -e "Installing Miniconda-${conda_version} on \"${resource_name}\"..."
+    ssh -q -o StrictHostKeyChecking=no ${resource} "$(typeset -f f_install_miniconda); \
+                                                    f_install_miniconda ${miniconda_dir_ref} ${conda_version}"
+    echo -e "Finished installing Miniconda on \"${resource_name}\".\n"
 
     # Checks to see if local copy of requirements file exists.
     # If so, copies over to the current remote resource in the loop.
-    if [ -e "${local_wd}/${conda_env}_requirements.yml" ]
+    if [ -e "${local_wd}/${conda_env}-requirements.yaml" ]
     then
-        scp -q ${local_wd}/${conda_env}_requirements.yml ${resource}.clusters.pw:
+        scp -q -o StrictHostKeyChecking=no ${local_wd}/${conda_env}-requirements.yaml ${resource}:
     fi
 
     # Build environment
-    echo -e "Building \"${conda_env}\" environment on \"${resource}\"..."
-    ssh -q ${resource} "$(typeset -f f_install_env); \
-                        f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
-    echo -e "Finished building \"${conda_env}\" environment on \"${resource}\".\n"
+    echo -e "Building \"${conda_env}\" environment on \"${resource_name}\"..."
+    ssh -q -o StrictHostKeyChecking=no ${resource} "$(typeset -f f_install_env); \
+                                                    f_install_env ${conda_env} ${miniconda_dir_ref} ${local_wd}"
+    echo -e "Finished building \"${conda_env}\" environment on \"${resource_name}\".\n"
 
     let resource_index++
 done
