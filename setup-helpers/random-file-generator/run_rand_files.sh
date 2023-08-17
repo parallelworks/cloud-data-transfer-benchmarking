@@ -14,7 +14,8 @@
                             # MAIN PROGRAM #
 #########################################################################
 # Check if user has specified any randomly generated files to be created
-input_file='inputs.json'
+input_file=$1
+generate_bools=${@: 2}
 remote_benchmark_dir='cloud-data-transfer-benchmarking'
 LOCALDIR=$( pwd )
 
@@ -22,11 +23,13 @@ f_run_rand_files() {
 
     LOCALDIR=$1
     miniconda_dir=$2
+    input_file=$3
 
     source ${miniconda_dir}/etc/profile.d/conda.sh
     conda activate cloud-data
 
     cd cloud-data-transfer-benchmarking/random-file-generator
+    export input_file
     python -u rand_files.py # Use `-u` flag to disable output buffering
 
     cd ..
@@ -36,7 +39,7 @@ f_run_rand_files() {
 
 
 
-for bool in $@
+for bool in ${generate_bools}
 do
     if [ "${bool}" == "true" ]
     then
@@ -63,7 +66,7 @@ do
 
         # Execute random file generation on remote cluster and clean up
         ssh -o StrictHostKeyChecking=no ${resource_ssh} "$(typeset -f f_run_rand_files); \
-                                                        f_run_rand_files \"${LOCALDIR}\" \"${miniconda_dir}\""
+                                                        f_run_rand_files \"${LOCALDIR}\" \"${miniconda_dir}\" \"${input_file}\""
         break
     fi
 done

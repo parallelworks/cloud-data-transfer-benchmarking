@@ -77,12 +77,13 @@ def MainLoop(dask_array, max_workers, diag_kwargs, worker_step=2, tests=5):
 home = os.path.expanduser('~')
 benchmark_dir = f'{home}/cloud-data-transfer-benchmarking'
 input_dir = f'{benchmark_dir}/inputs'
+input_file = os.environ['input_file']
 
 # Index that indicates which resource to pull cluster options from
 resource_index = int(os.environ['resource_index'])
 
 # Open benchmark information file
-with open(f'{input_dir}/inputs.json') as infile:
+with open(f'{input_dir}/{input_file}') as infile:
     inputs = ujson.loads(infile.read())
 
 # Populate variables from input file

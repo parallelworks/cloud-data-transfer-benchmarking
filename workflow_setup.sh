@@ -9,7 +9,7 @@
 
 # Name input file and remote benchmarking directory
 # (DO NOT CHANGE)
-input_file='inputs.json'
+input_file=$1
 remote_benchmark_dir='cloud-data-transfer-benchmarking'
 local_conda_sh=$( jq -r '.GLOBALOPTS.local_conda_sh' ${input_file} )
 
@@ -19,7 +19,7 @@ bash $( pwd )/setup-helpers/python-installation/install_python.sh ${input_file}
 
 
 # 2. SET INPUTS THAT LIMIT THE POWER OF CLUSTERS FOR A FAIR COMPARISON
-bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${local_conda_sh}
+bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${input_file} ${local_conda_sh}
 
 
 # 3. TRANSFER USER FILES TO BENCHMARKING CLOUD OBJECT STORES
@@ -30,6 +30,7 @@ bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${local_conda_sh
 # 4. UPDATE inputs.json WITH FILES TO BE BENCHMARKED
 source ${local_conda_sh}/etc/profile.d/conda.sh
 conda activate base
+export input_file
 python -u $( pwd )/setup-helpers/create_file_list.py
 
 
@@ -74,4 +75,4 @@ done
 
 # 6. RANDOM FILE GENERATION:
 generate_bools=$( jq -r '.RANDFILES[] | .Generate' ${input_file} )
-bash $( pwd )/setup-helpers/random-file-generator/run_rand_files.sh ${generate_bools}
+bash $( pwd )/setup-helpers/random-file-generator/run_rand_files.sh ${input_file} ${generate_bools}

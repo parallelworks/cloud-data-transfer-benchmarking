@@ -2,7 +2,10 @@ import json
 import os
 
 # Open user input file
-with open('inputs.json', 'r') as infile:
+input_file = str(os.environ['input_file'])
+
+
+with open(input_file, 'r') as infile:
     user_input = json.loads(infile.read())
 
 # Set index and max node count from environment variables
@@ -16,5 +19,5 @@ current_dask['MaxNodes'] = max_nodes
 
 # Update `inputs.json` with new fields
 updated_json = json.dumps(user_input)
-with open('inputs.json', 'w') as outfile:
+with open(input_file, 'w') as outfile:
     outfile.write(updated_json)

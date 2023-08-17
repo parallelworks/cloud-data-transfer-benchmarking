@@ -36,6 +36,7 @@ import preprocessing_helpers as preproc
 home = os.path.expanduser('~')
 benchmark_dir = f'{home}/cloud-data-transfer-benchmarking'
 input_dir = f'{benchmark_dir}/inputs'
+input_file = os.environ['input_file']
 
 
 # Index that indicates which resource to pull cluster options from
@@ -43,7 +44,7 @@ resource_index = int(os.environ['resource_index'])
 
 
 # Open benchmark information file
-with open(f'{input_dir}/inputs.json', 'r') as infile:
+with open(f'{input_dir}/{input_file}', 'r') as infile:
     inputs = ujson.loads(infile.read())
 
 
@@ -320,5 +321,5 @@ else:
 
 # Write updated file list back to `file_list.json`
 updated_json = ujson.dumps(inputs)
-with open(f'{input_dir}/inputs.json', 'w') as outfile:
+with open(f'{input_dir}/{input_file}', 'w') as outfile:
     outfile.write(updated_json)

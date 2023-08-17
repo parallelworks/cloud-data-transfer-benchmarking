@@ -13,12 +13,12 @@
                               # MAIN PROGRAM #
 ###############################################################################
 # TODO: Change command below to be more general to the workflow
-input_file='inputs.json'
+input_file=$1
 
 # REMOVE BENCHMARKING FILES FROM CLUSTER
-for resource in $( jq -r '.RESOURCES[] | .Name' ${input_file} )
+for resource in $( jq -r '.RESOURCES[] | .SSH' ${input_file} )
 do
-    ssh -q ${resource}.clusters.pw "rm -r cloud-data-transfer-benchmarking"
+    ssh -q -o StrictHostKeyChecking=no ${resource} "rm -r cloud-data-transfer-benchmarking"
 done
 
 

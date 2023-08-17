@@ -1,7 +1,8 @@
 import json
 import os
 
-with open('inputs.json', 'r') as infile:
+input_file = str(os.environ['input_file'])
+with open(input_file, 'r') as infile:
     user_input = json.loads(infile.read())
 
 resource_dask_opts = [resource['Dask'] for resource in user_input['RESOURCES']]
@@ -12,5 +13,5 @@ global_dask_opts['Memory'] = min([opt_set['Memory'] for opt_set in resource_dask
 global_dask_opts['MaxWorkers'] = min([global_dask_opts['Workers']*opt_set['MaxNodes'] for opt_set in resource_dask_opts])
 
 updated_json = json.dumps(user_input)
-with open('inputs.json', 'w') as outfile:
+with open(input_file, 'w') as outfile:
     outfile.write(updated_json)

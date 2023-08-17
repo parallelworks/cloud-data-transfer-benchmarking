@@ -1,0 +1,298 @@
+<tool id='NA' name='NA'>
+  <command interpreter='bash'>main.sh</command>
+  <cancel interpreter='bash'>kill.sh</cancel>
+  <inputs>
+    <section name='RESOURCES' type='section' title='Compute Resource Info' expanded='true'>
+    <param 
+        name='Resource' 
+        label='Resource' 
+        type='computeResource'  
+        help='Resource used to run benchmarks'
+    ></param>
+    <param
+        name='CSP'
+        label='Cluster CSP'
+        help='Cloud service provider of your cluster'
+        type='select'
+        multiple='false'>
+            <option value='GCP'>Google</option>
+            <option value='AWS'>AWS</option>
+    </param>
+    <!-- <conditional name="job_scheduler_info">
+        <param
+            name='Scheduler'
+            label='Select job scheduler'
+            help='Dask will use this information to submit job scripts on your behalf.'
+            type='select'
+            multiple='false'>
+                <option value='SLURM' selected='true'>SLURM</option>
+                <option value='' -->
+        <!-- </param>
+        <when value="SLURM"> -->
+    <param
+        name='Partition'
+        label='SLURM Partition'
+        type='text'
+        help='Partition of compute resource to use in benchmark.'
+        value=''
+    ></param>
+        <!-- </when>
+    </conditional> -->
+    <param
+        name='CPUs'
+        label='CPUs/worker node'
+        type='integer'
+        min='0'
+        help='This number can be found in the Instance Type field in the resource definition. If hyperthreading is disabled, enter half the number of vCPUs.'
+    ></param>
+    <param
+        name='Memory'
+        label='Memory (GB)/worker node'
+        type='integer'
+        min='0'
+        help='This number can be found in the Instance Type field in the resource definition.'
+    ></param>
+    <param
+        name='MinicondaDir'
+        label='Path to miniconda'
+        type='text'
+        value='~'
+        help='Path in the cluster to an existing miniconda installation or path to install miniconda. Miniconda directory must be shared between the controller and worker nodes. Leave the default value to install in the home directory.'
+    ></param>
+    </section>
+    <section name='STORAGE' type='section' title='Cloud Object Store' expanded='false'>
+    <param
+        name='Path'
+        label='Universal Resource Identifier (URI)'
+        type='text'
+        help='The URI of your bucket (e.g., gs://my-bucket, s3://my-bucket)'
+        value=''
+    ></param>
+    <conditional name='csp_credentials'>
+        <param
+            name='CSP'
+            label='Bucket CSP'
+            help='Cloud service provider of your bucket'
+            type='select'
+            multiple='false'>
+                <option value='GCP'>Google</option>
+                <option value='AWS'>AWS</option>
+        </param>
+        <when value='GCP'>
+            <param
+                name='gcp_credentials'
+                label='Path to service account token file'
+                help='JSON file for a service account with read/write/list/put object permissions'
+                type='text'
+                value=''
+            ></param>
+        </when>
+        <when value='AWS'>
+            <param
+                name='aws_credentials'
+                label='AWS Credentials'
+                help='AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Seperate the two entries with a comma.'
+                type='text'
+                value=''
+            ></param>
+        </when>
+    </conditional>
+    <param
+        name='Type'
+        label='Object Store Access Type'
+        type='hidden'
+        value='Private'
+        help='Public buckets must have public read/write/list/put access. Otherwise, use a private bucket.'
+    ></param>
+    </section>
+    <section name='USERFILES' type='section' title='User-Supplied Datasets' expanded='false'>
+    <param
+        name='nc_file'
+        label='NetCDF4 File'
+        type='text'
+        help='Path to NetCDF4 file(s) in bucket (e.g., path/in/bucket/to/data.nc). Do not include the bucket URI in your input. Separate multiple file paths by commas. Leave blank if you do not want to provide any NetCDF datasets.'
+        value=''
+    ></param>
+    <param
+        name='nc_data_vars'
+        label='NetCDF4 Data Variables'
+        type='text'
+        help='Enter the data variable name(s) for each NetCDF4 file specified. Seperate data variables in the same dataset by a comma. Use the default * character to use all data variables in the dataset. If a NetCDF4 dataset is not specified, this parameter will be ignored.'
+        value='*'
+    ></param>
+    <param
+        name='nc_comp_algs'
+        label='Compression algorithms to use in NetCDF4 conversion'
+        type='select'
+        multiple='true'
+        help='You may select multiple compression algorithms to apply during the NetCDF4 to Zarr conversion process. A single Zarr dataset will be written to cloud storage for each compression algorithm specified. This parameter will be ignored if no user NetCDF4 files are specified. Level 5 compression will be used for all options.'
+        >
+            <option value='lz4' selected="true">lz4</option>
+            <option value='blosclz'>blosclz</option>
+            <option value='zlib'>zlib</option>
+            <option value='zstd'>zstd</option>
+            <option value='gzip'>gzip</option>
+            <option value='bzip2'>bzip2</option>
+    </param>
+    <param
+        name='nc_chunksize'
+        label='Chunksizes to use in NetCDF4 conversion (MB)'
+        type='text'
+        help='Specify the chunksize (in MB) to use in the conversion from NetCDF4 to Zarr. Leave the default input of 0 to keep the internal chunksizes of the original file.'
+        value='0'
+    ></param>
+    <param
+        name='csv_file'
+        label='CSV Dataset'
+        type='text'
+        help='Path to CSV file in bucket. Do not include bucket URI in your input. If your CSV dataset is split into subfiles, use a globstring (path/to/data/*) to reference all files in that directory. Leave blank if you do not want to provide a CSV dataset.'
+        value=''
+    ></param>
+    <param
+        name='csv_comp_algs'
+        label='Compression algorithms to use in CSV conversion'
+        type='select'
+        multiple='true'
+        help='You may select multiple compression algorithms to apply during the CSV to Parquet conversion process. A single Parquet dataset will be written to cloud storage for each compression algorithm specified. This parameter will be ignored if no user CSV files are specified. Level 5 compression will be used for all options.'
+        >
+            <option value='snappy' selected="true">snappy</option>
+            <option value='lz4'>lz4</option>
+            <option value='gzip'>gzip</option>
+            <option value='zstd'>zstd</option>
+    </param>
+    <param
+        name='csv_chunksize'
+        label='Chunksizes to use in CSV conversion (MB)'
+        type='text'
+        help='Specify the chunksize (in MB) to use in the conversion from CSV to Parquet.'
+        value='120'
+    ></param>
+    </section>
+    <section name='RANDFILES' type='section' title='Randomly-Generated Datasets' expanded='false'>
+    <!-- <conditional name="randgen_csv">
+        <param
+            name='generate_csv'
+            type='select'
+            label='Generate CSV?'
+            multiple='false'>
+                <option value='yes'>Yes</option>
+                <option value='no'>No</option>
+        </param>
+        <when value='yes'> -->
+    <param
+        name='csv_size'
+        label='Desired CSV Size (GB)'
+        type='text'
+        help='The size of the CSV file that will be generated. If you do not wish to generate a file, leave the size as 0'
+        value='0'
+    ></param>
+    <param
+    name='csv_comp_algs'
+    label='Compression algorithms to use in CSV conversion'
+    type='select'
+    multiple='true'
+    help='You may select multiple compression algorithms to apply during the CSV to Parquet conversion process. A single Parquet dataset will be written to cloud storage for each compression algorithm specified. This parameter will be ignored if no user CSV files are specified. Level 5 compression will be used for all options.'
+    >
+        <option value='snappy' selected="true">snappy</option>
+        <option value='lz4'>lz4</option>
+        <option value='gzip'>gzip</option>
+        <option value='zstd'>zstd</option>
+    </param>
+    <param
+    name='csv_chunksize'
+    label='Chunksizes to use in CSV conversion (MB)'
+    type='text'
+    help='Specify the chunksize (in MB) to use in the conversion from CSV to Parquet.'
+    value="120"
+    ></param>
+        <!-- </when>
+    </conditional>
+    <conditional name='randgen_netcdf'>
+        <param
+            name='generate_netcdf'
+            type='select'
+            label='Generate NetCDF4?'
+            multiple='false'>
+                <option value='yes'>Yes</option>
+                <option value='no'>No</option>
+        </param>
+        <when value='yes'> -->
+    <param
+        name='netcdf_size'
+        label='Desired NetCDF4 Size (GB)'
+        type='text'
+        help='The size of the NetCDF4 file that will be generated. If you do not wish to generate a file, leave the size as 0'
+        value='0'
+    ></param>
+    <param
+        name='netcdf_dvars'
+        label='Number of data variables'
+        type='integer'
+        min='1'
+        value='1'
+        help='The number of data variables that will be generated in the NetCDF4 file. Data values will be float64. Parameter will be ignored if NetCDF4 size is 0'
+    ></param>
+    <param
+        name='netcdf_dims'
+        label='Number of dimensions'
+        type='integer'
+        min='1'
+        value='2'
+        help='The number of dimensions that will be generated in the NetCDF4 file. Dimensions all have datatype float64. Parameter will be ignored if NetCDF4 size is 0'
+    ></param>
+    <param
+    name='nc_comp_algs'
+    label='Compression algorithms to use in NetCDF4 conversion'
+    type='select'
+    multiple='true'
+    help='You may select multiple compression algorithms to apply during the NetCDF4 to Zarr conversion process. A single Zarr dataset will be written to cloud storage for each compression algorithm specified. This parameter will be ignored if no user NetCDF4 files are specified. Level 5 compression will be used for all options.'
+    >
+        <option value='lz4' selected="true">lz4</option>
+        <option value='blosclz'>blosclz</option>
+        <option value='zlib'>zlib</option>
+        <option value='zstd'>zstd</option>
+        <option value='gzip'>gzip</option>
+        <option value='bzip2'>bzip2</option>
+    </param>
+    <param
+    name='nc_chunksize'
+    label='Chunksizes to use in NetCDF4 conversion (MB)'
+    type='text'
+    help='Specify the chunksize (in MB) to use in the conversion from NetCDF4 to Zarr. Leave the default input of 0 to keep the internal chunksizes of the original file.'
+    value="0"
+    ></param>
+        <!-- </when>
+    </conditional> -->
+    </section>
+    <section name='GLOBALOPTS' type='section' title='General Options' expanded='false'>
+    <param
+        name='workers_per_node'
+        label='Dask workers per compute node'
+        type='integer'
+        value='2'
+        help='The number of Dask workers (parallel operations) each worker node of a cluster should spawn while carrying out a computation. Writing and reading from cloud storage is almost always bandwidth limited; in general, the more individual streams of data flowing into your worker nodes, the slower operations using data stored in the cloud will be.'
+    ></param>
+    <param
+        name='worker_step'
+        label='Worker Step'
+        type='integer'
+        value='2'
+        help='When performing file reads, the workflow will loop through a range of Dask workers (or number of parallel reads). The loop starts at the maximum defined worker amount, and reduces by the worker step until the lowest possible value of workers is reached. This value must be a multiple of the workers per compute node.'
+    ></param>
+    <param
+        name='tests'
+        label='Datasets reads per worker step'
+        type='integer'
+        value='5'
+        help='The number of times each individual file will be read for measurement at each step in the scaling process. Entering a number greater than 1 will take much longer to run, but results will reflect the volaility in network performance you can expect when using the data for computations.'
+    ></param>
+    <param
+        name='local_conda_sh'
+        label='Path to user container miniconda'
+        type='text'
+        value='/home/${USER}/pw/miniconda'
+        help='Path to miniconda within the user container (the same filesystem as the PW IDE). Default value is the miniconda installation that every PW user has.'
+    ></param>
+    </section>
+  </inputs>
+</tool>

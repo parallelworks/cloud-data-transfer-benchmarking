@@ -33,12 +33,12 @@ get_max_nodes() {
 }
 
 
-local_conda_sh=$1
+input_file=$1
+local_conda_sh=$2
 
 source ${local_conda_sh}/etc/profile.d/conda.sh
 conda activate base
 local_dir=$( pwd )/setup-helpers/get-dask-options
-input_file='inputs.json'
 
 
 # LOOP THROUGH RESOURCES AND RUN THE ABOVE FUNCTION ON EACH RESOURCE
@@ -65,7 +65,9 @@ do
     # Export environment variables and run python script to edit `inputs.json`
     export index
     export max_nodes
+    export input_file
     python ${local_dir}/recordmax.py
 done
 
+export input_file
 python ${local_dir}/set_dask_options.py # Add information that limits all cluster resources

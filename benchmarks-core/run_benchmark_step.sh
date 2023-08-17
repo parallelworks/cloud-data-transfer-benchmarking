@@ -14,8 +14,9 @@
 # Since this is a general script to run benchmarking steps, the
 # workflow will supply the name of the python script as well as the
 # name of the results file to write the csv data to.
-python_script=$1
-results_file=$2
+input_file=$1
+python_script=$2
+results_file=$3
 
                         # DEFINE FUNCTION #
 ######################################################################
@@ -25,6 +26,7 @@ f_benchmark() {
     results_path_local=$2
     python_script=$3
     miniconda_dir=$4
+    input_file=$5
     benchmark_dir='cloud-data-transfer-benchmarking'
 
     source ${miniconda_dir}/etc/profile.d/conda.sh
@@ -32,6 +34,7 @@ f_benchmark() {
     cd ${benchmark_dir}/benchmarks-core
 
     export resource_index
+    export input_file
     python -u ${python_script}
 
     cd .. # Change directory back to `~/cloud-data-transfer-benchmarking`
@@ -44,7 +47,6 @@ f_benchmark() {
                         # MAIN PROGRAM #
 ######################################################################
 
-input_file="inputs.json"
 resources=$( jq -r '.RESOURCES[] | .SSH' ${input_file} )
 
 # Initialize resource tracking index and make results directory & file
@@ -63,7 +65,7 @@ do
     fi
 
     ssh -q -o StrictHostKeyChecking=no ${resource} "$(typeset -f f_benchmark); \
-                                                    f_benchmark ${resource_index} ${results_path} ${python_script} ${miniconda_dir}"
+                                                    f_benchmark ${resource_index} ${results_path} ${python_script} ${miniconda_dir} ${input_file}"
     
 
     # Append results of current resource's test to a single file

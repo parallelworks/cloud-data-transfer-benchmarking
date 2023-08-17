@@ -28,8 +28,9 @@ import binary_generator as binary
 
 # Open user input file
 home = os.path.expanduser('~')
-input_file = f'{home}/cloud-data-transfer-benchmarking/inputs/inputs.json'
-with open(input_file, 'r') as infile:
+input_file = os.environ['input_file']
+input_path = f'{home}/cloud-data-transfer-benchmarking/inputs/{input_file}'
+with open(input_path, 'r') as infile:
     user_input = ujson.loads(infile.read())
 
 # Pull information about randomly generated files

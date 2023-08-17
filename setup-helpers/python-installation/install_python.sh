@@ -49,7 +49,7 @@ conda_env="cloud-data" # Desired name of conda environment
 
 #                    INPUTS FROM WORKFLOW
 #==============================================================
-input_file="inputs.json"
+input_file=$1
 resources=$( jq -r '.RESOURCES[] | .SSH' ${input_file} )
 
 #                                       FUNCTION DEFINITIONS

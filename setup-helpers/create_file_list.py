@@ -74,7 +74,9 @@ def get_filenames(userfiles, randfiles, supported_formats):
     
 
 # Load user input .json file
-with open('inputs.json', 'r') as infile:
+input_file = os.environ['input_file']
+
+with open(input_file, 'r') as infile:
     user_input = json.loads(infile.read())
 
 # Populate variabels with information about user-defined datasets
@@ -95,5 +97,5 @@ user_input['FILELIST'] = dict(zip(supported_formats, file_list))
 # Write file list to `benchmarks-core` to be used in read/write
 # operations in the benchmarking
 output_json = json.dumps(user_input)
-with open('inputs.json', 'w') as outfile:
+with open(input_file, 'w') as outfile:
     outfile.write(output_json)
