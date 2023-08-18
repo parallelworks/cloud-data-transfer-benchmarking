@@ -66,8 +66,8 @@ do
     export index
     export max_nodes
     export input_file
-    python ${local_dir}/recordmax.py
+    python3 ${local_dir}/recordmax.py
 done
 
 export input_file
-python ${local_dir}/set_dask_options.py # Add information that limits all cluster resources
+python3 ${local_dir}/set_dask_options.py # Add information that limits all cluster resources

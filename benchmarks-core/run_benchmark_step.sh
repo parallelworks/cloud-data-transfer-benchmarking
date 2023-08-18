@@ -35,7 +35,7 @@ f_benchmark() {
 
     export resource_index
     export input_file
-    python -u ${python_script}
+    python3 -u ${python_script}
 
     cd .. # Change directory back to `~/cloud-data-transfer-benchmarking`
 

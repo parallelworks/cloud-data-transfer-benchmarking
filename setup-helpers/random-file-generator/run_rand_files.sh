@@ -30,7 +30,7 @@ f_run_rand_files() {
 
     cd cloud-data-transfer-benchmarking/random-file-generator
     export input_file
-    python -u rand_files.py # Use `-u` flag to disable output buffering
+    python3 -u rand_files.py # Use `-u` flag to disable output buffering
 
     cd ..
     scp -q inputs/inputs.json usercontainer:${LOCALDIR} # Send amended benchmark info file back to user container

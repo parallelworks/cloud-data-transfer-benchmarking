@@ -31,7 +31,7 @@ bash $( pwd )/setup-helpers/get-dask-options/set_global_dask.sh ${input_file} ${
 source ${local_conda_sh}/etc/profile.d/conda.sh
 conda activate base
 export input_file
-python -u $( pwd )/setup-helpers/create_file_list.py
+python3 -u $( pwd )/setup-helpers/create_file_list.py
 
 
 # 5. COPY `benchmarks-core`, `random-file-generator` AND STORAGE CREDENTIALS TO ALL RESOURCES

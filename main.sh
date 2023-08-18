@@ -18,7 +18,7 @@
 local_conda_sh=$(jq -r '.GLOBALOPTS.local_conda_sh' inputs.json )
 
 source ${local_conda_sh}/etc/profile.d/conda.sh
-python $( pwd )/edit_form_inputs.py
+python3 $( pwd )/setup-helpers/edit_form_inputs.py
 
 # After new input file is created, begin workflow setup
 input_file='form_inputs.json'
