@@ -284,14 +284,14 @@ class DiagnosticTimer:
         data and other keyword arguments specified by the user
     """
 
-    def __init__(self, time_desc='runtime'):
+    def __init__(self, time_desc='runtime_seconds'):
         """This class is used to time a wide range of operations
         in the benchmarking: preprocessing, reading, performing
         mathematical operations, etc. It stores the data 
 
         Parameters
         ----------
-        time_desc : str (default = 'runtime')
+        time_desc : str (default = 'runtime_seconds')
             Describes which operation is being timed. For example,
             a good title for the time it takes for data to be read
             from the cloud might be `time_desc='
@@ -332,25 +332,23 @@ class DiagnosticTimer:
             kwargs['throughput_MBps'] = array_size / 1e6 / kwargs[self.time_desc]
 
         if use_tmp_list:
-            self.tmp_list.append({'time':kwargs[self.time_desc], 'thrput':kwargs['throughput_MBps']})
+            self.tmp_list.append(kwargs['throughput_MBps'])
         else:
             self.diagnostics.append(kwargs)
 
 
-    def compute_stats(self):
+    def compute_stats(self, array_size):
         """
         Computes the means and errors of consecutive reads/
         operations with the same number of workers.
         """
-        runtimes = np.array([ele['time'] for ele in self.tmp_list] + [self.diagnostics[-1][self.time_desc]])
-        throughputs = np.array([ele['thrput'] for ele in self.tmp_list] + [self.diagnostics[-1]['throughput_MBps']])
+        throughputs = np.array(self.tmp_list + [self.diagnostics[-1]['throughput_MBps']])
 
-        mean_runtime = np.mean(runtimes)
         mean_throughput = np.mean(throughputs)
         std_dev_thrput = tstd(throughputs)
-        self.diagnostics[-1][self.time_desc] = mean_runtime
         self.diagnostics[-1]['throughput_MBps'] = mean_throughput
         self.diagnostics[-1]['throughput_std_dev'] = std_dev_thrput
+        self.diagnostics[-1][self.time_desc] = array_size / 1e6 / mean_throughput
 
 
     def dataframe(self):

@@ -27,6 +27,7 @@ import intake_xarray
 import xarray as xr
 import fsspec
 import copy
+import numpy as np
 import preprocessing_helpers as preproc
 
 
@@ -100,7 +101,8 @@ if __name__ == '__main__':
 # TODO: Add different compression engine and chunksize support
 
 # Instantiate helper classes
-diag_timer = core.DiagnosticTimer(time_desc='conversion_time') # Instantiate diagnostic timer
+diag_timer = core.DiagnosticTimer(time_desc='conversion_time_seconds') # Instantiate diagnostic timer
+compute_details = core.ComputeDetails(client) # Instantiate class to track available resources
 
 # Set path that cloud native files will be written to and update file list flag 
 cloud_native_path = 'cloud-data-transfer-benchmarking/cloudnativefiles/' # Path to write data to
@@ -172,9 +174,24 @@ for store in stores:
                 df = dd.read_csv(f'{base_uri}/{filename}', assume_missing=True, header=None, storage_options=storage_options)
                 df = df.rename(columns=str)
 
+                # Get size of file(s) stored in cloud (directories in fs.du()
+                # must end with a `/`, or the else incorrect size will be displayed)
+                if filename[-1] == '*':
+                    lookup_string = filename[:-1]
+                else:
+                    lookup_string = filename
+                csv_cloud_size = fs.du(f'{base_uri}/{lookup_string}')
+
                 # Rechunk
                 chunksize=option_set['Chunksize']
-                df = df.repartition(partition_size=f'{chunksize}MB')
+
+                # Only repartition if the user has entered a nonzero chunksize
+                if chunksize:
+                    df = df.repartition(partition_size=f'{chunksize}MB')
+
+                dask_array = df.to_dask_array(lengths=True)
+                csv_mem_size=dask_array.nbytes
+                chunksize = (np.prod(dask_array.chunksize) * dask_array.dtype.itemsize) / 1e6
 
                 # Make copy of storage options and set compression level to pass when conversion is executed
                 lvl = option_set['Level']
@@ -184,17 +201,20 @@ for store in stores:
                 # Loop through algorithms
                 for algorithm in option_set['Algorithms']:
                     # Set paths for upload and recording into the file list
-                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{algorithm}_{lvl}.parquet'
-                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{algorithm}_{lvl}.parquet' # Path to update file list
+                    upload_path = cloud_native_path + f'{dataset_name}_{round(chunksize)}MB_{algorithm}_lvl{lvl}.parquet'
+                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{round(chunksize)}MB_{algorithm}_lvl{lvl}.parquet' # Path to update file list
 
                     # Convert the CSV file to parquet and time the execution
                     print(f'Converting \"{dataset_name}\" with {chunksize}MB chunks & level {lvl} {algorithm} compression to Parquet...')
-                    diag_kwargs = dict(resource=resource_name,
+                    diag_kwargs = dict(ncores=compute_details.total_ncores(),
+                                    resource=resource_name,
                                     resource_csp=resource_csp,
                                     bucket=base_uri,
                                     bucket_csp=csp,
                                     conversionType='CSV-to-Parquet',
                                     orig_dataset_name=dataset_name,
+                                    orig_mem_size_bytes=int(csv_mem_size),
+                                    orig_cloud_size_bytes=int(csv_cloud_size),
                                     data_vars='N/A',
                                     compr_alg=algorithm,
                                     compr_lvl=lvl,
@@ -257,6 +277,11 @@ for store in stores:
                 chunksize = option_set['Chunksize']
                 ds = preproc.dataset_rechunk(ds, dvars, chunksize) # Rechunk data
 
+                # Get memory size and cloud-stored size
+                nc_mem_size = ds.nbytes 
+                nc_cloud_size = fs.du(f'{base_uri}/{filename}')
+                chunksize = (np.prod(ds[dvars[0]].data.chunksize) * ds[dvars[0]].data.dtype.itemsize) / 1e6
+
                 # Loop through compression algorithms in current option set and write
                 lvl = option_set['Level'] # Compression level for all algorithms in option set
                 for alg in option_set['Algorithms']:
@@ -266,22 +291,26 @@ for store in stores:
                     so['compressor'] = preproc.zarr_compression(algorithm=alg, level=lvl) # Get compressor
 
                     # Set upload paths with compressor and chunksize information built into the name
-                    upload_path = cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}_{lvl}.zarr'
-                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{float(chunksize)}MB_{alg}_{lvl}.zarr'
+                    upload_path = cloud_native_path + f'{dataset_name}_{round(chunksize)}MB_{alg}_lvl{lvl}.zarr'
+                    list_upload_path = list_cloud_native_path + f'{dataset_name}_{round(chunksize)}MB_{alg}_lvl{lvl}.zarr'
 
                     # Convert the NetCDF4 file to Zarr and record the results
                     data_var_string = ', '.join(dvars)
                     print(f'Converting data variables \"{data_var_string}\" from \"{dataset_name}\" with {chunksize}MB chunks & level {lvl} {alg} compression to Zarr...')
-                    diag_kwargs = dict(resource=resource_name,
+                    diag_kwargs = dict(ncores=compute_details.total_ncores(),
+                                    resource=resource_name,
                                     resource_csp=resource_csp,
                                     bucket=base_uri,
                                     bucket_csp=csp,
                                     conversionType='NetCDF-to-Zarr',
                                     orig_dataset_name=dataset_name,
                                     data_vars=', '.join(file_list_dvars),
+                                    orig_mem_size_bytes=int(nc_mem_size),
+                                    orig_cloud_size_bytes=int(nc_cloud_size),
                                     compr_alg=alg,
                                     compr_lvl=lvl,
-                                    chunksize_MB=chunksize)
+                                    chunksize_MB=chunksize
+                                    )
 
                     with diag_timer.time(**diag_kwargs):
                         ds.to_zarr(store=f'{base_uri}/{upload_path}', storage_options=so, consolidated=True)

@@ -290,8 +290,8 @@
         name='local_conda_sh'
         label='Path to user container miniconda'
         type='text'
-        value='/home/${USER}/pw/miniconda'
-        help='Path to miniconda within the user container (the same filesystem as the PW IDE). Default value is the miniconda installation that every PW user has.'
+        value='/pw/.miniconda3'
+        help='Path to miniconda3 within the user container (the same filesystem as the PW IDE). Default value is the miniconda installation that every PW user has.'
     ></param>
     </section>
   </inputs>

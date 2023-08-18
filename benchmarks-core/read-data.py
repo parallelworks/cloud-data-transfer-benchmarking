@@ -65,7 +65,7 @@ def MainLoop(dask_array, max_workers, diag_kwargs, worker_step=2, tests=5):
                 dask.compute(future, retries=5)
 
         if i != 0:
-            diag_timer.compute_stats()
+            diag_timer.compute_stats(array_size)
             diag_timer.reset_lists(reset_tmp=True)
 #################################################################
 
@@ -143,7 +143,7 @@ if __name__ == '__main__':
 #################################################################
 
 # Instantiate benchmarking classes
-diag_timer = core.DiagnosticTimer(time_desc='read_time')
+diag_timer = core.DiagnosticTimer(time_desc='read_time_seconds')
 null_store = core.DevNullStore()
 compute_details = core.ComputeDetails(client)
 
@@ -195,6 +195,14 @@ for store in stores:
         chunksize = np.prod(dask_array.chunksize) * dask_array.dtype.itemsize
 
 
+        # Get size of file(s) stored in cloud (directories in fs.du()
+        # must end with a `/`, or the else incorrect size will be displayed)
+        if filename[-1] == '*':
+            lookup_string = filename[:-1]
+        else:
+            lookup_string = filename
+        csv_cloud_bytes = fs.du(f'{base_uri}/{lookup_string}')
+
 
         # Convert the CSV file to parquet and time the execution
         #print(f'Converting {dataset_name} to Parquet...')
@@ -205,7 +213,8 @@ for store in stores:
                            fileFormat=csv_format,
                            original_dataset_name=dataset_name,
                            data_variable='N/A',
-                           nbytes=dask_array.nbytes,
+                           mem_bytes=dask_array.nbytes,
+                           cloud_bytes=csv_cloud_bytes,
                            chunksize=chunksize)
         print(f'Reading {filename}...')
         MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
@@ -234,6 +243,14 @@ for store in stores:
         print('Done.')
 
 
+        # Get size of file(s) stored in cloud (directories in fs.du()
+        # must end with a `/`, or the else incorrect size will be displayed)
+        if filename[-1] == '*':
+            lookup_string = filename[:-1]
+        else:
+            lookup_string = filename
+        parquet_cloud_bytes = fs.du(f'{base_uri}/{lookup_string}')
+
 
         chunksize = np.prod(dask_array.chunksize) * dask_array.dtype.itemsize
         diag_kwargs = dict(resource=resource_name,
@@ -243,7 +260,8 @@ for store in stores:
                     fileFormat='Parquet',
                     original_dataset_name=dataset_name,
                     data_variable='N/A',
-                    nbytes=dask_array.nbytes,
+                    mem_bytes=dask_array.nbytes,
+                    cloud_bytes=parquet_cloud_bytes,
                     chunksize=chunksize)
         print(f'Reading {filename}...')
         MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
@@ -276,6 +294,7 @@ for store in stores:
             netcdf_format = 'NetCDF4'
 
         
+        nc_cloud_size = fs.du(f'{base_uri}/{filename}')
 
         dvars = [v for v in ds.data_vars]
         if data_vars[0] != '*':
@@ -299,7 +318,8 @@ for store in stores:
                             fileFormat=netcdf_format,
                             original_dataset_name=f'{dataset_name}',
                             data_variable=dvar,
-                            nbytes=dask_array.nbytes,
+                            mem_bytes=dask_array.nbytes,
+                            cloud_bytes=nc_cloud_size,
                             chunksize=chunksize)
             print(f'\nReading the variable \"{dvar}\" from \"{filename}\"...')
             MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)
@@ -316,6 +336,7 @@ for store in stores:
 
         ds = xr.open_zarr(f'{base_uri}/{filename}', consolidated=True, storage_options=storage_options)
 
+        zarr_cloud_size = fs.du(f'{base_uri}/{filename}/')
 
         dvars = [v for v in ds.data_vars]
         if data_vars[0] != '*':
@@ -333,7 +354,8 @@ for store in stores:
                             fileFormat='Zarr',
                             original_dataset_name=f'{dataset_name}',
                             data_variable=dvar,
-                            nbytes=dask_array.nbytes,
+                            mem_bytes=dask_array.nbytes,
+                            cloud_bytes=zarr_cloud_size,
                             chunksize=chunksize)
             print(f'\nReading the variable \"{dvar}\" from \"{filename}\"...')
             MainLoop(dask_array, max_workers, diag_kwargs, worker_step=worker_step, tests=tests)

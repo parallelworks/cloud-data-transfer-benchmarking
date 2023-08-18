@@ -1030,8 +1030,8 @@ class convertOptions(commonWidgets):
                                                 max=9,
                                                 step=1, disabled=False)
                                 ]),
-                        wg.HBox([wg.Label("Chunksize (MB): "),
-                                wg.FloatText(value='120')
+                        wg.HBox([wg.Label("Chunksize (MB) (Chunksize 0 will autochunk): "),
+                                wg.FloatText(value='0')
                                 ]),
                         wg.HBox([wg.Label("Datasets: "),
                                 wg.SelectMultiple(options=self.gridded_datasets)
