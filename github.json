@@ -1,0 +1,7 @@
+{
+  "repo": "https://github.com/parallelworks/cloud-data-transfer-benchmarking.git",
+  "branch": "main",
+  "xml": "workflow.xml",
+  "thumbnail": "thumbnail.png",
+  "readme": "README.md"
+}
